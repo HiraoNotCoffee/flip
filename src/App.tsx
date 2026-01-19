@@ -279,25 +279,16 @@ function App() {
           <div className="poker-table" />
         </div>
 
-        {state.stage === 'setup' ? (
-          <div className="setup-message">
-            <p>Select number of players</p>
-            <p>and press DEAL</p>
-          </div>
-        ) : (
-          <>
-            <div className="players-grid">
-              {Array.from({ length: 8 }, (_, i) => renderPlayerSlot(i))}
-            </div>
+        <div className="players-grid">
+          {Array.from({ length: 8 }, (_, i) => renderPlayerSlot(i))}
+        </div>
 
-            <div className="board-section">
-              {renderBoard()}
-              {showResults && state.winnerHandName && (
-                <div className="winner-hand">{state.winnerHandName}</div>
-              )}
-            </div>
-          </>
-        )}
+        <div className="board-section">
+          {renderBoard()}
+          {showResults && state.winnerHandName && (
+            <div className="winner-hand">{state.winnerHandName}</div>
+          )}
+        </div>
       </main>
 
       <footer className="footer">
