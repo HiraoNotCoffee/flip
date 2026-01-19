@@ -97,11 +97,14 @@ function App() {
 
   const renderPlayerSlots = () => {
     const count = state.stage === 'setup' ? playerCount : state.players.length
-    return Array.from({ length: count }, (_, i) => {
+    return Array.from({ length: 8 }, (_, i) => {
+      if (i >= count) {
+        return <div key={i} className="player-slot" />
+      }
       const player = state.players[i]
       const isWinner = player?.rank === 1
       return (
-        <div key={i} className={'player-slot' + (isWinner ? ' winner' : '')} data-position={i}>
+        <div key={i} className={'player-slot' + (isWinner ? ' winner' : '')}>
           <div className="player-info-badge">
             <span className="player-label">P{i + 1}</span>
             {player && (
@@ -157,38 +160,39 @@ function App() {
 
       <main className="main">
         <div className="poker-table-container">
-          <div className="poker-table">
-            <section className="board-section">
-              {state.stage === 'setup' ? (
-                <div className="setup-message">
-                  <p>プレイヤー数を選択して</p>
-                  <p>Dealを押してください</p>
-                </div>
-              ) : (
-                <>
-                  <div className="board">
-                    {[0, 1, 2, 3, 4].map(i => {
-                      const card = state.board[i]
-                      if (!card && state.stage === 'turn' && i === 4) {
-                        return riverSqueezeProgress > 0 ? (
-                          <CardView key={i} card={state.deck[0]} squeeze squeezeProgress={riverSqueezeProgress} size="medium" />
-                        ) : (
-                          <CardView key={i} card={state.deck[0]} faceDown size="medium" />
-                        )
-                      }
-                      if (!card) return <div key={i} className="card-empty" style={{ width: 44, height: 62 }} />
-                      return <CardView key={i} card={card} size="medium" />
-                    })}
-                  </div>
-                  {state.winnerHandName && <div className="winner-hand">{state.winnerHandName}</div>}
-                </>
-              )}
-            </section>
-          </div>
-          <div className="players-ring" data-count={state.stage === 'setup' ? playerCount : state.players.length}>
-            {renderPlayerSlots()}
-          </div>
+          <div className="poker-table" />
         </div>
+
+        {state.stage === 'setup' ? (
+          <div className="setup-message">
+            <p>プレイヤー数を選択して</p>
+            <p>Dealを押してください</p>
+          </div>
+        ) : (
+          <>
+            <div className="players-grid">
+              {renderPlayerSlots()}
+            </div>
+
+            <section className="board-section">
+              <div className="board">
+                {[0, 1, 2, 3, 4].map(i => {
+                  const card = state.board[i]
+                  if (!card && state.stage === 'turn' && i === 4) {
+                    return riverSqueezeProgress > 0 ? (
+                      <CardView key={i} card={state.deck[0]} squeeze squeezeProgress={riverSqueezeProgress} size="medium" />
+                    ) : (
+                      <CardView key={i} card={state.deck[0]} faceDown size="medium" />
+                    )
+                  }
+                  if (!card) return <div key={i} className="card-empty" style={{ width: 44, height: 62 }} />
+                  return <CardView key={i} card={card} size="medium" />
+                })}
+              </div>
+              {state.winnerHandName && <div className="winner-hand">{state.winnerHandName}</div>}
+            </section>
+          </>
+        )}
       </main>
 
       <footer className="footer">{getStageButton()}</footer>
