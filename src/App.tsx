@@ -19,8 +19,7 @@ function App() {
   const [dealtCards, setDealtCards] = useState<number>(0)
   const [revealedBoardCards, setRevealedBoardCards] = useState<number>(0)
 
-  // River flip state
-  const [riverFlipped, setRiverFlipped] = useState(false)
+  // Results display state
   const [showResults, setShowResults] = useState(false)
 
   // Store previous equity values (before river)
@@ -31,7 +30,6 @@ function App() {
     if (state.stage === 'setup') {
       setDealtCards(0)
       setRevealedBoardCards(0)
-      setRiverFlipped(false)
       setShowResults(false)
       prevEquities.current = []
     }
@@ -84,21 +82,15 @@ function App() {
     }
   }, [state.stage, revealedBoardCards])
 
-  // Show results after river flip animation completes
+  // Show results after river card is revealed
   useEffect(() => {
-    if (riverFlipped) {
+    if (state.stage === 'river' && revealedBoardCards >= 5) {
       const timer = setTimeout(() => {
         setShowResults(true)
-      }, 600) // Wait for flip animation to complete
+      }, 400) // Wait for card animation to complete
       return () => clearTimeout(timer)
     }
-  }, [riverFlipped])
-
-  const handleRiverFlip = () => {
-    if (!riverFlipped) {
-      setRiverFlipped(true)
-    }
-  }
+  }, [state.stage, revealedBoardCards])
 
   const handleReset = () => {
     reset()
@@ -234,17 +226,12 @@ function App() {
             return <div key={i} className="card-empty" />
           }
 
-          // River card with flip animation
+          // River card - just show it smoothly
           if (isRiverCard && state.stage === 'river' && isRevealed) {
             return (
-              <CardView
-                key={i}
-                card={card}
-                flip={true}
-                flipped={riverFlipped}
-                onFlip={handleRiverFlip}
-                size="board"
-              />
+              <div key={i} className="card-flipping">
+                <CardView card={card} size="board" />
+              </div>
             )
           }
 
