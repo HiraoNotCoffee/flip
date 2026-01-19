@@ -15,147 +15,256 @@ function App() {
     reset
   } = useGame()
 
+  // Track which cards have been dealt/revealed (for animations)
+  const [dealtCards, setDealtCards] = useState<number>(0)
+  const [revealedBoardCards, setRevealedBoardCards] = useState<number>(0)
+
+  // River squeeze state
   const [riverSqueezeProgress, setRiverSqueezeProgress] = useState(0)
-  const [dealingCards, setDealingCards] = useState<number[]>([])
-  const [isDealing, setIsDealing] = useState(false)
+  const [riverRevealed, setRiverRevealed] = useState(false)
 
-  const handleDeal = () => {
-    setIsDealing(true)
-    setDealingCards([])
-    deal()
-  }
-
+  // Reset animation states when game resets
   useEffect(() => {
-    if (state.stage === 'preflop' && isDealing) {
-      const totalCards = playerCount * 2
-      let cardIndex = 0
-      const interval = setInterval(() => {
-        if (cardIndex < totalCards) {
-          setDealingCards(prev => [...prev, cardIndex])
-          cardIndex++
-        } else {
-          clearInterval(interval)
-          setIsDealing(false)
-        }
-      }, 150)
-      return () => clearInterval(interval)
+    if (state.stage === 'setup') {
+      setDealtCards(0)
+      setRevealedBoardCards(0)
+      setRiverSqueezeProgress(0)
+      setRiverRevealed(false)
     }
-  }, [state.stage, isDealing, playerCount])
+  }, [state.stage])
 
-  const handleRiverReveal = () => {
-    if (state.stage === 'turn') {
-      const interval = setInterval(() => {
-        setRiverSqueezeProgress(prev => {
-          const newProgress = Math.min(prev + 15, 100)
-          if (newProgress >= 100) {
-            clearInterval(interval)
-            setTimeout(() => dealRiver(), 200)
-          }
-          return newProgress
-        })
-      }, 80)
+  // Deal cards one by one animation
+  useEffect(() => {
+    if (state.stage === 'preflop' && dealtCards < playerCount * 2) {
+      const timer = setTimeout(() => {
+        setDealtCards(prev => prev + 1)
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [state.stage, dealtCards, playerCount])
+
+  // Board reveal animation - flop (3 cards one by one)
+  useEffect(() => {
+    if (state.stage === 'flop' && revealedBoardCards < 3) {
+      const timer = setTimeout(() => {
+        setRevealedBoardCards(prev => prev + 1)
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [state.stage, revealedBoardCards])
+
+  // Board reveal animation - turn (4th card)
+  useEffect(() => {
+    if (state.stage === 'turn' && revealedBoardCards < 4) {
+      const timer = setTimeout(() => {
+        setRevealedBoardCards(4)
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [state.stage, revealedBoardCards])
+
+  // Board reveal animation - river (5th card with squeeze)
+  useEffect(() => {
+    if (state.stage === 'river' && revealedBoardCards < 5) {
+      const timer = setTimeout(() => {
+        setRevealedBoardCards(5)
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [state.stage, revealedBoardCards])
+
+  const handleSqueeze = () => {
+    if (riverSqueezeProgress >= 100) {
+      setRiverRevealed(true)
+    } else {
+      setRiverSqueezeProgress(prev => Math.min(100, prev + 25))
     }
   }
 
   const handleReset = () => {
-    setRiverSqueezeProgress(0)
-    setDealingCards([])
-    setIsDealing(false)
     reset()
   }
 
-  const getStageButton = () => {
+  const handleAction = () => {
     switch (state.stage) {
       case 'setup':
-        return <button className="action-btn deal-btn" onClick={handleDeal}>Deal</button>
+        deal()
+        break
       case 'preflop':
-        return <button className="action-btn" onClick={dealFlop} disabled={isDealing}>Flop</button>
+        if (dealtCards >= playerCount * 2) dealFlop()
+        break
       case 'flop':
-        return <button className="action-btn" onClick={dealTurn}>Turn</button>
+        if (revealedBoardCards >= 3) dealTurn()
+        break
       case 'turn':
-        return <button className="action-btn squeeze-btn" onClick={handleRiverReveal}>River</button>
+        if (revealedBoardCards >= 4) dealRiver()
+        break
       case 'river':
-        return <button className="action-btn reset-btn" onClick={handleReset}>Reset</button>
-      default:
-        return null
+        handleReset()
+        break
     }
   }
 
-  const getRankLabel = (rank: number | null) => {
-    if (rank === null) return ''
-    if (rank === 1) return '1st'
-    if (rank === 2) return '2nd'
-    if (rank === 3) return '3rd'
-    return rank + 'th'
+  const getActionLabel = () => {
+    switch (state.stage) {
+      case 'setup':
+        return 'ディール'
+      case 'preflop':
+        return 'フロップ'
+      case 'flop':
+        return 'ターン'
+      case 'turn':
+        return 'リバー'
+      case 'river':
+        return 'リセット'
+      default:
+        return 'ディール'
+    }
   }
 
-  const isCardVisible = (playerIndex: number, cardIndex: number) => {
-    if (state.stage === 'setup') return false
-    const dealIndex = playerIndex * 2 + cardIndex
-    return dealingCards.includes(dealIndex) || !isDealing
+  const isActionDisabled = () => {
+    if (state.stage === 'preflop' && dealtCards < playerCount * 2) return true
+    if (state.stage === 'flop' && revealedBoardCards < 3) return true
+    if (state.stage === 'turn' && revealedBoardCards < 4) return true
+    if (state.stage === 'river' && !riverRevealed && riverSqueezeProgress < 100) return true
+    return false
   }
 
-  const renderPlayerSlots = () => {
-    const count = state.stage === 'setup' ? playerCount : state.players.length
-    return Array.from({ length: 8 }, (_, i) => {
-      if (i >= count) {
-        return <div key={i} className="player-slot" />
-      }
-      const player = state.players[i]
-      const isWinner = player?.rank === 1
+  const renderPlayerSlot = (index: number) => {
+    const player = state.players[index]
+    const slotActive = index < playerCount
+
+    if (!slotActive) return null
+
+    if (state.stage === 'setup') {
       return (
-        <div key={i} className={'player-slot' + (isWinner ? ' winner' : '')}>
+        <div key={index} className="player-slot">
           <div className="player-info-badge">
-            <span className="player-label">P{i + 1}</span>
-            {player && (
-              <>
-                <span className="player-equity">{player.equity.toFixed(1)}%</span>
-                {player.rank !== null && (
-                  <span className={'player-rank rank-' + player.rank}>{getRankLabel(player.rank)}</span>
-                )}
-              </>
-            )}
+            <span className="player-label">P{index + 1}</span>
           </div>
           <div className="player-hand">
-            {player ? (
-              <>
-                {isCardVisible(i, 0) ? (
-                  <div className={isDealing && dealingCards.includes(i * 2) ? 'card-dealing' : ''}>
-                    <CardView card={player.hand[0]} size="small" />
-                  </div>
-                ) : <div className="card-empty" />}
-                {isCardVisible(i, 1) ? (
-                  <div className={isDealing && dealingCards.includes(i * 2 + 1) ? 'card-dealing' : ''}>
-                    <CardView card={player.hand[1]} size="small" />
-                  </div>
-                ) : <div className="card-empty" />}
-              </>
-            ) : (
-              <>
-                <div className="card-empty" />
-                <div className="card-empty" />
-              </>
-            )}
+            <CardView card={null} size="small" />
+            <CardView card={null} size="small" />
           </div>
         </div>
       )
-    })
+    }
+
+    const cardIndex1 = index * 2
+    const cardIndex2 = index * 2 + 1
+    const showCard1 = dealtCards > cardIndex1
+    const showCard2 = dealtCards > cardIndex2
+
+    const isWinner = player?.rank === 1
+
+    return (
+      <div key={index} className={`player-slot ${isWinner ? 'winner' : ''}`}>
+        <div className="player-info-badge">
+          <span className="player-label">P{index + 1}</span>
+          {player && (
+            <>
+              <span className="player-equity">{player.equity.toFixed(1)}%</span>
+              {player.rank && (
+                <span className={`player-rank rank-${player.rank}`}>
+                  {player.rank}位
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        <div className="player-hand">
+          {showCard1 ? (
+            <div className="card-dealing">
+              <CardView card={player?.hand[0] || null} size="small" />
+            </div>
+          ) : (
+            <CardView card={null} size="small" />
+          )}
+          {showCard2 ? (
+            <div className="card-dealing">
+              <CardView card={player?.hand[1] || null} size="small" />
+            </div>
+          ) : (
+            <CardView card={null} size="small" />
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const renderBoard = () => {
+    const boardCards = state.board
+
+    return (
+      <div className="board">
+        {[0, 1, 2, 3, 4].map(i => {
+          const card = boardCards[i] || null
+          const isRevealed = i < revealedBoardCards
+          const isRiverCard = i === 4
+
+          if (!card) {
+            return <div key={i} className="card-empty" />
+          }
+
+          if (isRiverCard && state.stage === 'river') {
+            // River card with squeeze
+            if (!riverRevealed && riverSqueezeProgress < 100) {
+              return (
+                <div key={i} className={isRevealed ? 'card-flipping' : ''}>
+                  <CardView
+                    card={card}
+                    squeeze={true}
+                    squeezeProgress={riverSqueezeProgress}
+                    onSqueeze={handleSqueeze}
+                    size="medium"
+                  />
+                </div>
+              )
+            }
+            return (
+              <div key={i} className="card-flipping">
+                <CardView card={card} size="medium" />
+              </div>
+            )
+          }
+
+          if (!isRevealed) {
+            return <div key={i} className="card-empty" />
+          }
+
+          return (
+            <div key={i} className="card-flipping">
+              <CardView card={card} size="medium" />
+            </div>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
     <div className="app">
       <header className="header">
-        <h1>Flipout</h1>
-        {state.stage === 'setup' ? (
-          <div className="player-select">
-            <label>Players:</label>
-            <select value={playerCount} onChange={(e) => setPlayerCount(Number(e.target.value))}>
-              {[2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-        ) : (
-          <button className="reset-small" onClick={handleReset}>Reset</button>
-        )}
+        <h1>Texas Holdem Flipout</h1>
+        <div className="player-select">
+          <label>プレイヤー:</label>
+          <select
+            value={playerCount}
+            onChange={e => setPlayerCount(Number(e.target.value))}
+            disabled={state.stage !== 'setup'}
+          >
+            {[2, 3, 4, 5, 6, 7, 8].map(n => (
+              <option key={n} value={n}>
+                {n}人
+              </option>
+            ))}
+          </select>
+          {state.stage !== 'setup' && (
+            <button className="reset-small" onClick={handleReset}>
+              リセット
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="main">
@@ -166,36 +275,33 @@ function App() {
         {state.stage === 'setup' ? (
           <div className="setup-message">
             <p>プレイヤー数を選択して</p>
-            <p>Dealを押してください</p>
+            <p>ディールボタンを押してください</p>
           </div>
         ) : (
           <>
             <div className="players-grid">
-              {renderPlayerSlots()}
+              {Array.from({ length: 8 }, (_, i) => renderPlayerSlot(i))}
             </div>
 
-            <section className="board-section">
-              <div className="board">
-                {[0, 1, 2, 3, 4].map(i => {
-                  const card = state.board[i]
-                  if (!card && state.stage === 'turn' && i === 4) {
-                    return riverSqueezeProgress > 0 ? (
-                      <CardView key={i} card={state.deck[0]} squeeze squeezeProgress={riverSqueezeProgress} size="medium" />
-                    ) : (
-                      <CardView key={i} card={state.deck[0]} faceDown size="medium" />
-                    )
-                  }
-                  if (!card) return <div key={i} className="card-empty" style={{ width: 44, height: 62 }} />
-                  return <CardView key={i} card={card} size="medium" />
-                })}
-              </div>
-              {state.winnerHandName && <div className="winner-hand">{state.winnerHandName}</div>}
-            </section>
+            <div className="board-section">
+              {renderBoard()}
+              {state.winnerHandName && (
+                <div className="winner-hand">{state.winnerHandName}</div>
+              )}
+            </div>
           </>
         )}
       </main>
 
-      <footer className="footer">{getStageButton()}</footer>
+      <footer className="footer">
+        <button
+          className={`action-btn ${state.stage === 'setup' ? 'deal-btn' : state.stage === 'river' ? 'reset-btn' : ''} ${state.stage === 'turn' ? 'squeeze-btn' : ''}`}
+          onClick={handleAction}
+          disabled={isActionDisabled()}
+        >
+          {getActionLabel()}
+        </button>
+      </footer>
     </div>
   )
 }

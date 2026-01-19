@@ -65,44 +65,46 @@
   overflow: hidden;
 }
 
+/* Poker table - capsule shape (semicircle + rectangle + semicircle) */
 .poker-table-container {
   position: absolute;
   inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 10px;
+  padding: 8px;
 }
 
 .poker-table {
-  width: 95%;
-  height: 95%;
-  border-radius: 50%;
+  width: 92%;
+  height: 92%;
+  border-radius: 100px;
   background: linear-gradient(180deg, #1b5e20 0%, #2e7d32 50%, #1b5e20 100%);
   box-shadow:
     0 0 0 8px #5d4037,
     0 0 0 12px #4e342e,
     0 0 0 14px #3e2723,
     0 8px 32px rgba(0, 0, 0, 0.5);
+  position: relative;
 }
 
 .poker-table::before {
   content: '';
   position: absolute;
-  inset: 20px;
-  border-radius: 50%;
+  inset: 15px;
+  border-radius: 85px;
   border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .players-grid {
   position: relative;
   z-index: 5;
-  flex: 0 0 80%;
+  flex: 0 0 75%;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(4, 1fr);
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
   align-content: center;
 }
 
@@ -111,7 +113,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .player-info-badge {
@@ -172,20 +174,27 @@
 .board-section {
   position: relative;
   z-index: 5;
-  flex: 0 0 20%;
+  flex: 0 0 25%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
   background: rgba(0, 0, 0, 0.4);
-  padding: 8px;
+  padding: 8px 4px;
 }
 
 .board {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   justify-content: center;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.board > * {
+  flex: 1;
+  max-width: 60px;
 }
 
 .winner-hand {
@@ -264,8 +273,9 @@
 }
 
 .card-empty {
-  width: 40px;
-  height: 56px;
+  width: 100%;
+  aspect-ratio: 5/7;
+  max-width: 60px;
   border: 2px dashed rgba(255, 255, 255, 0.3);
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.05);
@@ -284,4 +294,17 @@
 
 .card-dealing {
   animation: dealCard 0.3s ease-out forwards;
+}
+
+@keyframes flipCard {
+  0% {
+    transform: rotateY(180deg);
+  }
+  100% {
+    transform: rotateY(0deg);
+  }
+}
+
+.card-flipping {
+  animation: flipCard 0.4s ease-out forwards;
 }
