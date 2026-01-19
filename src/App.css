@@ -1,0 +1,245 @@
+.app {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: white;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.player-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-select label {
+  font-size: 0.9rem;
+}
+
+.player-select select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  background: #2d3a4f;
+  color: white;
+  font-size: 1rem;
+}
+
+.reset-small {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  background: #e74c3c;
+  color: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 8px;
+  gap: 8px;
+}
+
+.setup-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.setup-message p {
+  margin: 4px 0;
+}
+
+.board-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  background: rgba(0, 100, 0, 0.3);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.board {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.winner-hand {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f1c40f;
+  text-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+}
+
+.players-section {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  overflow-y: auto;
+  padding: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.player {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+}
+
+.player.winner {
+  background: rgba(241, 196, 15, 0.2);
+  box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.player-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.player-equity {
+  font-size: 0.85rem;
+  color: #3498db;
+  font-weight: 500;
+}
+
+.player-rank {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.rank-1 {
+  background: #f1c40f;
+  color: #000;
+}
+
+.rank-2 {
+  background: #bdc3c7;
+  color: #000;
+}
+
+.rank-3 {
+  background: #cd6133;
+  color: #fff;
+}
+
+.player-rank:not(.rank-1):not(.rank-2):not(.rank-3) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.player-hand {
+  display: flex;
+  gap: 4px;
+}
+
+.footer {
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  padding: 14px 48px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.deal-btn {
+  background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+  color: white;
+}
+
+.action-btn:not(.deal-btn):not(.reset-btn) {
+  background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
+  color: white;
+}
+
+.squeeze-btn {
+  background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%) !important;
+}
+
+.reset-btn {
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+  color: white;
+}
+
+.action-btn:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+@media (max-height: 700px) {
+  .board-section {
+    padding: 8px 0;
+  }
+
+  .players-section {
+    gap: 6px;
+  }
+
+  .player {
+    padding: 6px;
+  }
+
+  .action-btn {
+    padding: 10px 36px;
+    font-size: 1rem;
+  }
+}

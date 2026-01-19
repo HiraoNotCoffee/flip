@@ -1,0 +1,129 @@
+.card {
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Georgia', serif;
+  user-select: none;
+}
+
+.card-small {
+  width: 32px;
+  height: 45px;
+  font-size: 10px;
+}
+
+.card-medium {
+  width: 44px;
+  height: 62px;
+  font-size: 13px;
+}
+
+.card-large {
+  width: 56px;
+  height: 78px;
+  font-size: 16px;
+}
+
+.card-placeholder {
+  background: transparent;
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  box-shadow: none;
+}
+
+.card-back {
+  background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.card-back-pattern {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 255, 255, 0.05) 3px,
+    rgba(255, 255, 255, 0.05) 6px
+  );
+}
+
+.card-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.card-corner .card-rank {
+  font-weight: bold;
+}
+
+.card-corner .card-suit {
+  font-size: 0.9em;
+}
+
+.top-left {
+  top: 3px;
+  left: 4px;
+}
+
+.bottom-right {
+  bottom: 3px;
+  right: 4px;
+  transform: rotate(180deg);
+}
+
+.card-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card-suit-large {
+  font-size: 1.8em;
+}
+
+/* Squeeze animation */
+.card-squeeze {
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+}
+
+.card-squeeze .card-back-pattern {
+  transition: clip-path 0.3s ease;
+  clip-path: inset(0 0 var(--squeeze-progress) 0);
+}
+
+.card-squeeze .card-reveal {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--squeeze-progress);
+  background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 4px;
+  overflow: hidden;
+}
+
+.card-squeeze .card-reveal .card-rank {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+.card-squeeze .card-reveal .card-suit {
+  font-size: 0.9em;
+}
