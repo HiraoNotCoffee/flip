@@ -24,9 +24,36 @@
 }
 
 .card-large {
-  width: 60px;
-  height: 84px;
-  font-size: 18px;
+  width: 56px;
+  height: 78px;
+  font-size: 16px;
+}
+
+/* Board size - larger and more readable */
+.card-board {
+  width: 56px;
+  height: 78px;
+  font-size: 20px;
+}
+
+.card-board .card-corner {
+  display: none;
+}
+
+.card-board .card-center {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-board .card-rank-large {
+  font-size: 1.6em;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.card-board .card-suit-large {
+  font-size: 1.4em;
+  line-height: 1;
 }
 
 .card-placeholder {
@@ -202,6 +229,12 @@
   height: 84px;
 }
 
+.card-flip-container.card-board,
+.card-flip-inner.card-board {
+  width: 56px;
+  height: 78px;
+}
+
 /* Front card styling */
 .card-flip-front {
   display: flex;
@@ -214,6 +247,7 @@
 .card-flip-inner.card-small .card-flip-front { font-size: 11px; }
 .card-flip-inner.card-medium .card-flip-front { font-size: 14px; }
 .card-flip-inner.card-large .card-flip-front { font-size: 18px; }
+.card-flip-inner.card-board .card-flip-front { font-size: 20px; }
 
 .card-flip-front .card-corner {
   position: absolute;
@@ -252,4 +286,16 @@
 
 .card-flip-front .card-suit-large {
   font-size: 1.4em;
+}
+
+/* Board size flip card styling */
+.card-flip-inner.card-board .card-flip-front .card-center {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-flip-front .card-rank-large {
+  font-size: 1.6em;
+  font-weight: bold;
+  line-height: 1;
 }

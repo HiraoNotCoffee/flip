@@ -9,7 +9,7 @@ interface CardViewProps {
   flip?: boolean
   flipped?: boolean
   onFlip?: () => void
-  size?: 'small' | 'medium' | 'large'
+  size?: 'small' | 'medium' | 'large' | 'board'
 }
 
 export function CardView({
@@ -53,6 +53,7 @@ export function CardView({
 
   // 3D flip animation mode - poker app style with swipe
   if (flip) {
+    const isBoard = size === 'board'
     return (
       <div
         className={`card-flip-container card-${size}`}
@@ -67,17 +68,26 @@ export function CardView({
           </div>
           {/* Front of card */}
           <div className="card-flip-front" style={{ color }}>
-            <div className="card-corner top-left">
-              <span className="card-rank">{rank}</span>
-              <span className="card-suit">{symbol}</span>
-            </div>
-            <div className="card-center">
-              <span className="card-suit-large">{symbol}</span>
-            </div>
-            <div className="card-corner bottom-right">
-              <span className="card-rank">{rank}</span>
-              <span className="card-suit">{symbol}</span>
-            </div>
+            {isBoard ? (
+              <div className="card-center">
+                <span className="card-rank-large">{rank}</span>
+                <span className="card-suit-large">{symbol}</span>
+              </div>
+            ) : (
+              <>
+                <div className="card-corner top-left">
+                  <span className="card-rank">{rank}</span>
+                  <span className="card-suit">{symbol}</span>
+                </div>
+                <div className="card-center">
+                  <span className="card-suit-large">{symbol}</span>
+                </div>
+                <div className="card-corner bottom-right">
+                  <span className="card-rank">{rank}</span>
+                  <span className="card-suit">{symbol}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -91,6 +101,18 @@ export function CardView({
         onClick={onFlip}
       >
         <div className="card-back-pattern" />
+      </div>
+    )
+  }
+
+  // Board size - show rank prominently in center
+  if (size === 'board') {
+    return (
+      <div className={`card card-board`} style={{ color }}>
+        <div className="card-center">
+          <span className="card-rank-large">{rank}</span>
+          <span className="card-suit-large">{symbol}</span>
+        </div>
       </div>
     )
   }

@@ -243,7 +243,7 @@ function App() {
                 flip={true}
                 flipped={riverFlipped}
                 onFlip={handleRiverFlip}
-                size="medium"
+                size="board"
               />
             )
           }
@@ -254,7 +254,7 @@ function App() {
 
           return (
             <div key={i} className="card-flipping">
-              <CardView card={card} size="medium" />
+              <CardView card={card} size="board" />
             </div>
           )
         })}
