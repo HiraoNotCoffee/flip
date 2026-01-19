@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
 import './App.css'
@@ -19,19 +19,30 @@ function App() {
   const [dealtCards, setDealtCards] = useState<number>(0)
   const [revealedBoardCards, setRevealedBoardCards] = useState<number>(0)
 
-  // River squeeze state
-  const [riverSqueezeProgress, setRiverSqueezeProgress] = useState(0)
-  const [riverRevealed, setRiverRevealed] = useState(false)
+  // River flip state
+  const [riverFlipped, setRiverFlipped] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+
+  // Store previous equity values (before river)
+  const prevEquities = useRef<number[]>([])
 
   // Reset animation states when game resets
   useEffect(() => {
     if (state.stage === 'setup') {
       setDealtCards(0)
       setRevealedBoardCards(0)
-      setRiverSqueezeProgress(0)
-      setRiverRevealed(false)
+      setRiverFlipped(false)
+      setShowResults(false)
+      prevEquities.current = []
     }
   }, [state.stage])
+
+  // Save equity before river is dealt
+  useEffect(() => {
+    if (state.stage === 'turn' && state.players.length > 0) {
+      prevEquities.current = state.players.map(p => p.equity)
+    }
+  }, [state.stage, state.players])
 
   // Deal cards one by one animation
   useEffect(() => {
@@ -63,7 +74,7 @@ function App() {
     }
   }, [state.stage, revealedBoardCards])
 
-  // Board reveal animation - river (5th card with squeeze)
+  // Board reveal animation - river (5th card - wait for flip)
   useEffect(() => {
     if (state.stage === 'river' && revealedBoardCards < 5) {
       const timer = setTimeout(() => {
@@ -73,11 +84,19 @@ function App() {
     }
   }, [state.stage, revealedBoardCards])
 
-  const handleSqueeze = () => {
-    if (riverSqueezeProgress >= 100) {
-      setRiverRevealed(true)
-    } else {
-      setRiverSqueezeProgress(prev => Math.min(100, prev + 25))
+  // Show results after river flip animation completes
+  useEffect(() => {
+    if (riverFlipped) {
+      const timer = setTimeout(() => {
+        setShowResults(true)
+      }, 600) // Wait for flip animation to complete
+      return () => clearTimeout(timer)
+    }
+  }, [riverFlipped])
+
+  const handleRiverFlip = () => {
+    if (!riverFlipped) {
+      setRiverFlipped(true)
     }
   }
 
@@ -126,7 +145,7 @@ function App() {
     if (state.stage === 'preflop' && dealtCards < playerCount * 2) return true
     if (state.stage === 'flop' && revealedBoardCards < 3) return true
     if (state.stage === 'turn' && revealedBoardCards < 4) return true
-    if (state.stage === 'river' && !riverRevealed && riverSqueezeProgress < 100) return true
+    if (state.stage === 'river' && !showResults) return true
     return false
   }
 
@@ -157,7 +176,12 @@ function App() {
     const showCard1 = dealtCards > cardIndex1
     const showCard2 = dealtCards > cardIndex2
 
-    const isWinner = player?.rank === 1
+    const isWinner = showResults && player?.rank === 1
+
+    // Show previous equity until river is revealed
+    const displayEquity = state.stage === 'river' && !showResults
+      ? prevEquities.current[index] ?? player?.equity ?? 0
+      : player?.equity ?? 0
 
     return (
       <div key={index} className={`player-slot ${isWinner ? 'winner' : ''}`}>
@@ -183,10 +207,10 @@ function App() {
           </div>
           {player && (
             <div className="player-info-badge">
-              <span className="player-equity">{player.equity.toFixed(1)}%</span>
+              <span className="player-equity">{displayEquity.toFixed(1)}%</span>
             </div>
           )}
-          {player?.rank && (
+          {showResults && player?.rank && (
             <div className={`player-info-badge player-rank rank-${player.rank}`}>
               {player.rank}位
             </div>
@@ -210,25 +234,17 @@ function App() {
             return <div key={i} className="card-empty" />
           }
 
-          if (isRiverCard && state.stage === 'river') {
-            // River card with squeeze
-            if (!riverRevealed && riverSqueezeProgress < 100) {
-              return (
-                <div key={i} className={isRevealed ? 'card-flipping' : ''}>
-                  <CardView
-                    card={card}
-                    squeeze={true}
-                    squeezeProgress={riverSqueezeProgress}
-                    onSqueeze={handleSqueeze}
-                    size="medium"
-                  />
-                </div>
-              )
-            }
+          // River card with flip animation
+          if (isRiverCard && state.stage === 'river' && isRevealed) {
             return (
-              <div key={i} className="card-flipping">
-                <CardView card={card} size="medium" />
-              </div>
+              <CardView
+                key={i}
+                card={card}
+                flip={true}
+                flipped={riverFlipped}
+                onFlip={handleRiverFlip}
+                size="medium"
+              />
             )
           }
 
@@ -289,7 +305,7 @@ function App() {
 
             <div className="board-section">
               {renderBoard()}
-              {state.winnerHandName && (
+              {showResults && state.winnerHandName && (
                 <div className="winner-hand">{state.winnerHandName}</div>
               )}
             </div>
