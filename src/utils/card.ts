@@ -19,8 +19,8 @@ export const suitSymbol: Record<Suit, string> = {
 export const suitColor: Record<Suit, string> = {
   spade: '#000',
   heart: '#e74c3c',
-  diamond: '#3498db',
-  club: '#27ae60'
+  diamond: '#e74c3c',
+  club: '#000'
 }
 
 export function rankToString(rank: Rank): string {
