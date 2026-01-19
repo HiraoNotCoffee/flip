@@ -127,15 +127,18 @@
   font-size: 0.9em;
 }
 
-/* 3D Flip Animation */
+/* 3D Flip Animation - Poker app style */
 .card-flip-container {
-  perspective: 400px;
+  perspective: 800px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .card-flip-inner {
   position: relative;
   transform-style: preserve-3d;
-  transition: transform 0.6s ease;
+  transition: transform 380ms cubic-bezier(.2, .8, .2, 1);
+  user-select: none;
 }
 
 .card-flip-inner.flipped {
@@ -145,15 +148,104 @@
 .card-flip-front,
 .card-flip-back {
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .card-flip-front {
-  position: absolute;
-  top: 0;
-  left: 0;
   transform: rotateY(180deg);
+  background: #f8f8f8;
 }
 
 .card-flip-back {
   transform: rotateY(0deg);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.15), transparent 55%),
+    linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
+}
+
+.card-flip-back .card-back-pattern {
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 255, 255, 0.05) 3px,
+    rgba(255, 255, 255, 0.05) 6px
+  );
+}
+
+/* Flip container sizes */
+.card-flip-container.card-small,
+.card-flip-inner.card-small {
+  width: 36px;
+  height: 50px;
+}
+
+.card-flip-container.card-medium,
+.card-flip-inner.card-medium {
+  width: 48px;
+  height: 67px;
+}
+
+.card-flip-container.card-large,
+.card-flip-inner.card-large {
+  width: 60px;
+  height: 84px;
+}
+
+/* Front card styling */
+.card-flip-front {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Georgia', serif;
+}
+
+.card-flip-inner.card-small .card-flip-front { font-size: 11px; }
+.card-flip-inner.card-medium .card-flip-front { font-size: 14px; }
+.card-flip-inner.card-large .card-flip-front { font-size: 18px; }
+
+.card-flip-front .card-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.card-flip-front .card-corner .card-rank {
+  font-weight: bold;
+}
+
+.card-flip-front .card-corner .card-suit {
+  font-size: 0.85em;
+}
+
+.card-flip-front .top-left {
+  top: 2px;
+  left: 3px;
+}
+
+.card-flip-front .bottom-right {
+  bottom: 2px;
+  right: 3px;
+  transform: rotate(180deg);
+}
+
+.card-flip-front .card-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.card-flip-front .card-suit-large {
+  font-size: 1.4em;
 }

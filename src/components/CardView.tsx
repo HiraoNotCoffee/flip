@@ -27,17 +27,17 @@ export function CardView({
   const symbol = suitSymbol[card.suit]
   const rank = rankToString(card.rank)
 
-  // 3D flip animation mode
+  // 3D flip animation mode - poker app style
   if (flip) {
     return (
       <div className={`card-flip-container card-${size}`} onClick={onFlip}>
-        <div className={`card-flip-inner ${flipped ? 'flipped' : ''}`}>
+        <div className={`card-flip-inner card-${size} ${flipped ? 'flipped' : ''}`}>
           {/* Back of card */}
-          <div className={`card card-back card-flip-back card-${size}`}>
+          <div className="card-flip-back">
             <div className="card-back-pattern" />
           </div>
           {/* Front of card */}
-          <div className={`card card-flip-front card-${size}`} style={{ color }}>
+          <div className="card-flip-front" style={{ color }}>
             <div className="card-corner top-left">
               <span className="card-rank">{rank}</span>
               <span className="card-suit">{symbol}</span>
