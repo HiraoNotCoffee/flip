@@ -119,17 +119,17 @@ function App() {
   const getActionLabel = () => {
     switch (state.stage) {
       case 'setup':
-        return 'ディール'
+        return 'DEAL'
       case 'preflop':
-        return 'フロップ'
+        return 'FLOP'
       case 'flop':
-        return 'ターン'
+        return 'TURN'
       case 'turn':
-        return 'リバー'
+        return 'RIVER'
       case 'river':
-        return 'リセット'
+        return 'RESET'
       default:
-        return 'ディール'
+        return 'DEAL'
     }
   }
 
@@ -204,7 +204,7 @@ function App() {
           )}
           {showResults && player?.rank && (
             <div className={`player-info-badge player-rank rank-${player.rank}`}>
-              {player.rank}位
+              #{player.rank}
             </div>
           )}
         </div>
@@ -254,7 +254,7 @@ function App() {
       <header className="header">
         <h1>Texas Holdem Flipout</h1>
         <div className="player-select">
-          <label>プレイヤー:</label>
+          <label>Players:</label>
           <select
             value={playerCount}
             onChange={e => setPlayerCount(Number(e.target.value))}
@@ -262,13 +262,13 @@ function App() {
           >
             {[2, 3, 4, 5, 6, 7, 8].map(n => (
               <option key={n} value={n}>
-                {n}人
+                {n}
               </option>
             ))}
           </select>
           {state.stage !== 'setup' && (
             <button className="reset-small" onClick={handleReset}>
-              リセット
+              Reset
             </button>
           )}
         </div>
@@ -281,8 +281,8 @@ function App() {
 
         {state.stage === 'setup' ? (
           <div className="setup-message">
-            <p>プレイヤー数を選択して</p>
-            <p>ディールボタンを押してください</p>
+            <p>Select number of players</p>
+            <p>and press DEAL</p>
           </div>
         ) : (
           <>
