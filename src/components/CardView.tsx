@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import type { Card } from '../utils/card'
 import { suitSymbol, suitColor, rankToString } from '../utils/card'
 import './CardView.css'
@@ -19,6 +20,9 @@ export function CardView({
   onFlip,
   size = 'medium'
 }: CardViewProps) {
+  const touchStartX = useRef<number>(0)
+  const touchStartY = useRef<number>(0)
+
   if (!card) {
     return <div className={`card card-placeholder card-${size}`} />
   }
@@ -27,10 +31,35 @@ export function CardView({
   const symbol = suitSymbol[card.suit]
   const rank = rankToString(card.rank)
 
-  // 3D flip animation mode - poker app style
+  // Swipe handling for flip
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!onFlip || flipped) return
+
+    const touchEndX = e.changedTouches[0].clientX
+    const touchEndY = e.changedTouches[0].clientY
+    const deltaX = touchEndX - touchStartX.current
+    const deltaY = Math.abs(touchEndY - touchStartY.current)
+
+    // Swipe left to flip (at least 30px horizontal, less than 50px vertical)
+    if (deltaX < -30 && deltaY < 50) {
+      onFlip()
+    }
+  }
+
+  // 3D flip animation mode - poker app style with swipe
   if (flip) {
     return (
-      <div className={`card-flip-container card-${size}`} onClick={onFlip}>
+      <div
+        className={`card-flip-container card-${size}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onClick={() => !flipped && onFlip?.()}
+      >
         <div className={`card-flip-inner card-${size} ${flipped ? 'flipped' : ''}`}>
           {/* Back of card */}
           <div className="card-flip-back">

@@ -61,6 +61,7 @@
   flex-direction: column;
   align-items: center;
   line-height: 1;
+  gap: 1px;
 }
 
 .card-corner .card-rank {
@@ -68,7 +69,8 @@
 }
 
 .card-corner .card-suit {
-  font-size: 0.85em;
+  font-size: 0.8em;
+  margin-top: 1px;
 }
 
 .top-left {
@@ -219,6 +221,7 @@
   flex-direction: column;
   align-items: center;
   line-height: 1;
+  gap: 1px;
 }
 
 .card-flip-front .card-corner .card-rank {
@@ -226,7 +229,8 @@
 }
 
 .card-flip-front .card-corner .card-suit {
-  font-size: 0.85em;
+  font-size: 0.8em;
+  margin-top: 1px;
 }
 
 .card-flip-front .top-left {
