@@ -139,12 +139,14 @@ function App() {
     if (state.stage === 'setup') {
       return (
         <div key={index} className="player-slot">
-          <div className="player-info-badge">
-            <span className="player-label">P{index + 1}</span>
+          <div className="player-cards">
+            <CardView card={null} size="medium" />
+            <CardView card={null} size="medium" />
           </div>
-          <div className="player-hand">
-            <CardView card={null} size="small" />
-            <CardView card={null} size="small" />
+          <div className="player-info">
+            <div className="player-info-badge">
+              <span className="player-label">P{index + 1}</span>
+            </div>
           </div>
         </div>
       )
@@ -159,33 +161,35 @@ function App() {
 
     return (
       <div key={index} className={`player-slot ${isWinner ? 'winner' : ''}`}>
-        <div className="player-info-badge">
-          <span className="player-label">P{index + 1}</span>
-          {player && (
-            <>
-              <span className="player-equity">{player.equity.toFixed(1)}%</span>
-              {player.rank && (
-                <span className={`player-rank rank-${player.rank}`}>
-                  {player.rank}位
-                </span>
-              )}
-            </>
-          )}
-        </div>
-        <div className="player-hand">
+        <div className="player-cards">
           {showCard1 ? (
             <div className="card-dealing">
-              <CardView card={player?.hand[0] || null} size="small" />
+              <CardView card={player?.hand[0] || null} size="medium" />
             </div>
           ) : (
-            <CardView card={null} size="small" />
+            <CardView card={null} size="medium" />
           )}
           {showCard2 ? (
             <div className="card-dealing">
-              <CardView card={player?.hand[1] || null} size="small" />
+              <CardView card={player?.hand[1] || null} size="medium" />
             </div>
           ) : (
-            <CardView card={null} size="small" />
+            <CardView card={null} size="medium" />
+          )}
+        </div>
+        <div className="player-info">
+          <div className="player-info-badge">
+            <span className="player-label">P{index + 1}</span>
+          </div>
+          {player && (
+            <div className="player-info-badge">
+              <span className="player-equity">{player.equity.toFixed(1)}%</span>
+            </div>
+          )}
+          {player?.rank && (
+            <div className={`player-info-badge player-rank rank-${player.rank}`}>
+              {player.rank}位
+            </div>
           )}
         </div>
       </div>

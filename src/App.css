@@ -78,7 +78,7 @@
 .poker-table {
   width: 92%;
   height: 92%;
-  border-radius: 100px;
+  border-radius: 9999px;
   background: linear-gradient(180deg, #1b5e20 0%, #2e7d32 50%, #1b5e20 100%);
   box-shadow:
     0 0 0 8px #5d4037,
@@ -92,7 +92,7 @@
   content: '';
   position: absolute;
   inset: 15px;
-  border-radius: 85px;
+  border-radius: 9999px;
   border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -110,21 +110,29 @@
 
 .player-slot {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+}
+
+.player-cards {
+  display: flex;
   gap: 3px;
+}
+
+.player-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 .player-info-badge {
   background: rgba(0, 0, 0, 0.7);
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
-  font-size: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
+  font-size: 0.8rem;
 }
 
 .player-label {
@@ -161,14 +169,10 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-.player-hand {
-  display: flex;
-  gap: 3px;
-}
-
-.player-slot.winner .player-info-badge {
-  background: rgba(241, 196, 15, 0.4);
-  box-shadow: 0 0 10px rgba(241, 196, 15, 0.6);
+.player-slot.winner {
+  background: rgba(241, 196, 15, 0.2);
+  border-radius: 8px;
+  padding: 4px;
 }
 
 .board-section {
