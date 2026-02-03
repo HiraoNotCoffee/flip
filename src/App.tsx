@@ -8,6 +8,8 @@ function App() {
     state,
     playerCount,
     setPlayerCount,
+    specialMode,
+    setSpecialMode,
     deal,
     dealFlop,
     dealTurn,
@@ -250,27 +252,39 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${specialMode ? 'special-mode' : ''}`}>
       <header className="header">
         <h1>Texas Holdem Flipout</h1>
-        <div className="player-select">
-          <label>Players:</label>
-          <select
-            value={playerCount}
-            onChange={e => setPlayerCount(Number(e.target.value))}
-            disabled={state.stage !== 'setup'}
-          >
-            {[2, 3, 4, 5, 6, 7, 8].map(n => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          {state.stage !== 'setup' && (
-            <button className="reset-small" onClick={handleReset}>
-              Reset
-            </button>
-          )}
+        <div className="header-controls">
+          <label className="special-toggle">
+            <input
+              type="checkbox"
+              checked={specialMode}
+              onChange={e => setSpecialMode(e.target.checked)}
+              disabled={state.stage !== 'setup'}
+            />
+            <span className="toggle-slider" />
+            <span className="toggle-label">SP</span>
+          </label>
+          <div className="player-select">
+            <label>Players:</label>
+            <select
+              value={playerCount}
+              onChange={e => setPlayerCount(Number(e.target.value))}
+              disabled={state.stage !== 'setup'}
+            >
+              {[2, 3, 4, 5, 6, 7, 8].map(n => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            {state.stage !== 'setup' && (
+              <button className="reset-small" onClick={handleReset}>
+                Reset
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

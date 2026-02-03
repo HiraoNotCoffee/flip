@@ -34,6 +34,7 @@ const INITIAL_STATE: GameState = {
 export function useGame() {
   const [state, setState] = useState<GameState>(INITIAL_STATE)
   const [playerCount, setPlayerCount] = useState(2)
+  const [specialMode, setSpecialMode] = useState(false)
 
   const deal = useCallback(() => {
     const deck = shuffleDeck(createDeck())
@@ -50,6 +51,25 @@ export function useGame() {
       })
     }
 
+    const remainingDeck = deck.slice(deckIndex)
+
+    // Special mode: rig the winner
+    if (specialMode) {
+      const targetIndex = new Date().getHours() % playerCount
+      // Pre-determine the board (first 5 cards from remaining deck)
+      const futureBoard = remainingDeck.slice(0, 5)
+      // Evaluate all hands against the future board
+      const evaluatedHands = players.map(p => evaluateHand(p.hand, futureBoard))
+      const ranks = rankHands(evaluatedHands)
+      // If target player doesn't have rank 1, swap hands with the winner
+      if (ranks[targetIndex] !== 1) {
+        const winnerIndex = ranks.indexOf(1)
+        const temp = players[targetIndex].hand
+        players[targetIndex].hand = players[winnerIndex].hand
+        players[winnerIndex].hand = temp
+      }
+    }
+
     // Calculate initial equity
     const equities = calculateEquity(
       players.map(p => p.hand),
@@ -64,10 +84,10 @@ export function useGame() {
       stage: 'preflop',
       players,
       board: [],
-      deck: deck.slice(deckIndex),
+      deck: remainingDeck,
       winnerHandName: null
     })
-  }, [playerCount])
+  }, [playerCount, specialMode])
 
   const dealFlop = useCallback(() => {
     setState(prev => {
@@ -171,6 +191,8 @@ export function useGame() {
     state,
     playerCount,
     setPlayerCount,
+    specialMode,
+    setSpecialMode,
     deal,
     dealFlop,
     dealTurn,

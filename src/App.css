@@ -19,6 +19,12 @@
   z-index: 10;
 }
 
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .header h1 {
   margin: 0;
   font-size: 1rem;
@@ -307,4 +313,136 @@
 
 .card-flipping {
   animation: flipCard 0.4s ease-out forwards;
+}
+
+/* Special mode toggle */
+.special-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.special-toggle input {
+  display: none;
+}
+
+.toggle-slider {
+  width: 36px;
+  height: 20px;
+  background: #444;
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.3s;
+}
+
+.toggle-slider::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #aaa;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s, background 0.3s;
+}
+
+.special-toggle input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #b8860b, #ffd700);
+}
+
+.special-toggle input:checked + .toggle-slider::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.special-toggle input:disabled + .toggle-slider {
+  opacity: 0.4;
+}
+
+.toggle-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #aaa;
+  letter-spacing: 0.5px;
+}
+
+.special-toggle input:checked ~ .toggle-label {
+  color: #ffd700;
+}
+
+/* Special mode background */
+.app.special-mode {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(184, 134, 11, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(255, 215, 0, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 0%, rgba(255, 215, 0, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(184, 134, 11, 0.12) 0%, transparent 60%),
+    #0a0a12;
+}
+
+.app.special-mode::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 80px,
+      rgba(255, 215, 0, 0.02) 80px,
+      rgba(255, 215, 0, 0.02) 82px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 80px,
+      rgba(255, 215, 0, 0.02) 80px,
+      rgba(255, 215, 0, 0.02) 82px
+    );
+  pointer-events: none;
+  z-index: 0;
+  animation: shimmer 8s linear infinite;
+}
+
+.app.special-mode .poker-table {
+  background: linear-gradient(180deg, #1a4d1a 0%, #2e7d32 50%, #1a4d1a 100%);
+  box-shadow:
+    0 0 0 8px #8b6914,
+    0 0 0 12px #b8860b,
+    0 0 0 14px #daa520,
+    0 0 20px rgba(255, 215, 0, 0.3),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.app.special-mode .poker-table::before {
+  border-color: rgba(255, 215, 0, 0.2);
+}
+
+.app.special-mode .header {
+  background: rgba(0, 0, 0, 0.6);
+  border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+}
+
+.app.special-mode .footer {
+  background: rgba(0, 0, 0, 0.6);
+  border-top: 1px solid rgba(255, 215, 0, 0.15);
+}
+
+.app.special-mode .header h1 {
+  background: linear-gradient(90deg, #ffd700, #fff8dc, #ffd700);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-20px) translateY(-20px);
+  }
+  100% {
+    transform: translateX(20px) translateY(20px);
+  }
 }
