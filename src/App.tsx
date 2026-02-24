@@ -20,9 +20,16 @@ function App() {
     reset
   } = useGame()
 
-  // Page / menu state
-  const [page, setPage] = useState<Page>('flip')
+  // Page / menu state (persist across reload)
+  const [page, setPage] = useState<Page>(() => {
+    const saved = localStorage.getItem('flip-app-page')
+    return saved === 'chip' ? 'chip' : 'flip'
+  })
   const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem('flip-app-page', page)
+  }, [page])
 
   // Track which cards have been dealt/revealed (for animations)
   const [dealtCards, setDealtCards] = useState<number>(0)
