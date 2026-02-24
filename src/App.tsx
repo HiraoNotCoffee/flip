@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
+import { ChipCalculator } from './components/ChipCalculator'
 import './App.css'
+
+type Page = 'flip' | 'chip'
 
 function App() {
   const {
@@ -16,6 +19,10 @@ function App() {
     dealRiver,
     reset
   } = useGame()
+
+  // Page / menu state
+  const [page, setPage] = useState<Page>('flip')
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // Track which cards have been dealt/revealed (for animations)
   const [dealtCards, setDealtCards] = useState<number>(0)
@@ -251,69 +258,107 @@ function App() {
     )
   }
 
+  const selectPage = (p: Page) => {
+    setPage(p)
+    setMenuOpen(false)
+  }
+
   return (
-    <div className={`app ${specialMode ? 'special-mode' : ''}`}>
+    <div className={`app ${specialMode && page === 'flip' ? 'special-mode' : ''}`}>
       <header className="header">
-        <h1>Texas Holdem Flipout</h1>
-        <div className="header-controls">
-          <label className="special-toggle">
-            <input
-              type="checkbox"
-              checked={specialMode}
-              onChange={e => setSpecialMode(e.target.checked)}
-              disabled={state.stage !== 'setup'}
-            />
-            <span className="toggle-slider" />
-            <span className="toggle-label">SP</span>
-          </label>
-          <div className="player-select">
-            <label>Players:</label>
-            <select
-              value={playerCount}
-              onChange={e => setPlayerCount(Number(e.target.value))}
-              disabled={state.stage !== 'setup'}
-            >
-              {[2, 3, 4, 5, 6, 7, 8].map(n => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-            {state.stage !== 'setup' && (
-              <button className="reset-small" onClick={handleReset}>
-                Reset
-              </button>
-            )}
-          </div>
+        <div className="header-left">
+          <button className="hamburger-btn" onClick={() => setMenuOpen(o => !o)}>
+            ☰
+          </button>
+          <h1>{page === 'flip' ? 'Texas Holdem Flipout' : 'Chip Calculator'}</h1>
         </div>
+        {page === 'flip' && (
+          <div className="header-controls">
+            <label className="special-toggle">
+              <input
+                type="checkbox"
+                checked={specialMode}
+                onChange={e => setSpecialMode(e.target.checked)}
+                disabled={state.stage !== 'setup'}
+              />
+              <span className="toggle-slider" />
+              <span className="toggle-label">SP</span>
+            </label>
+            <div className="player-select">
+              <label>Players:</label>
+              <select
+                value={playerCount}
+                onChange={e => setPlayerCount(Number(e.target.value))}
+                disabled={state.stage !== 'setup'}
+              >
+                {[2, 3, 4, 5, 6, 7, 8].map(n => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              {state.stage !== 'setup' && (
+                <button className="reset-small" onClick={handleReset}>
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
-      <main className="main">
-        <div className="poker-table-container">
-          <div className="poker-table" />
+      {/* Menu overlay */}
+      {menuOpen && (
+        <div className="menu-overlay" onClick={() => setMenuOpen(false)}>
+          <nav className="menu-panel" onClick={e => e.stopPropagation()}>
+            <button
+              className={`menu-item ${page === 'flip' ? 'active' : ''}`}
+              onClick={() => selectPage('flip')}
+            >
+              Flip
+            </button>
+            <button
+              className={`menu-item ${page === 'chip' ? 'active' : ''}`}
+              onClick={() => selectPage('chip')}
+            >
+              Chip Calculator
+            </button>
+          </nav>
         </div>
+      )}
 
-        <div className="players-grid">
-          {Array.from({ length: 8 }, (_, i) => renderPlayerSlot(i))}
-        </div>
+      {page === 'flip' ? (
+        <>
+          <main className="main">
+            <div className="poker-table-container">
+              <div className="poker-table" />
+            </div>
 
-        <div className="board-section">
-          {renderBoard()}
-          {showResults && state.winnerHandName && (
-            <div className="winner-hand">{state.winnerHandName}</div>
-          )}
-        </div>
-      </main>
+            <div className="players-grid">
+              {Array.from({ length: 8 }, (_, i) => renderPlayerSlot(i))}
+            </div>
 
-      <footer className="footer">
-        <button
-          className={`action-btn ${state.stage === 'setup' ? 'deal-btn' : state.stage === 'river' ? 'reset-btn' : ''} ${state.stage === 'turn' ? 'squeeze-btn' : ''}`}
-          onClick={handleAction}
-          disabled={isActionDisabled()}
-        >
-          {getActionLabel()}
-        </button>
-      </footer>
+            <div className="board-section">
+              {renderBoard()}
+              {showResults && state.winnerHandName && (
+                <div className="winner-hand">{state.winnerHandName}</div>
+              )}
+            </div>
+          </main>
+
+          <footer className="footer">
+            <button
+              className={`action-btn ${state.stage === 'setup' ? 'deal-btn' : state.stage === 'river' ? 'reset-btn' : ''} ${state.stage === 'turn' ? 'squeeze-btn' : ''}`}
+              onClick={handleAction}
+              disabled={isActionDisabled()}
+            >
+              {getActionLabel()}
+            </button>
+          </footer>
+        </>
+      ) : (
+        <ChipCalculator />
+      )}
     </div>
   )
 }

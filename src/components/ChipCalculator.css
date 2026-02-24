@@ -1,0 +1,316 @@
+.chip-calculator {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  gap: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Settings Section */
+.chip-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.chip-settings h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setting-row label {
+  font-size: 0.85rem;
+  color: #ccc;
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+.setting-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.95rem;
+  min-width: 0;
+}
+
+.setting-row input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+/* Players Section */
+.chip-players {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chip-players-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chip-players-header h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.add-player-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #27ae60;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-player-btn:active {
+  opacity: 0.8;
+}
+
+.player-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-name-input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.player-name-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.remove-player-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(231, 76, 60, 0.6);
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.remove-player-btn:active {
+  opacity: 0.7;
+}
+
+.player-card-fields {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.field-group label {
+  font-size: 0.7rem;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.rebuy-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rebuy-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: #2d3a4f;
+  color: white;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rebuy-btn:active {
+  opacity: 0.7;
+}
+
+.rebuy-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.rebuy-count {
+  font-size: 1.1rem;
+  font-weight: 600;
+  min-width: 24px;
+  text-align: center;
+}
+
+.final-chips-input {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.95rem;
+}
+
+.final-chips-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.player-card-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.player-pnl {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.player-pnl.positive {
+  color: #2ecc71;
+}
+
+.player-pnl.negative {
+  color: #e74c3c;
+}
+
+.player-pnl.zero {
+  color: #aaa;
+}
+
+/* Summary Section */
+.chip-summary {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chip-summary h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.summary-row .label {
+  color: #999;
+}
+
+.summary-row .value {
+  font-weight: 600;
+}
+
+.chip-diff {
+  padding: 8px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.chip-diff.match {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+}
+
+.chip-diff.mismatch {
+  background: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+}
+
+/* Reset Button */
+.chip-reset-section {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 16px;
+}
+
+.chip-reset-btn {
+  padding: 10px 32px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.chip-reset-btn:active {
+  opacity: 0.8;
+  transform: scale(0.98);
+}
