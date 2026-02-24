@@ -11,6 +11,7 @@ interface ChipPlayer {
 interface ChipData {
   chipsPer100BB: number
   buyInYen: number
+  rake: number          // レーキ（チップ単位）
   players: ChipPlayer[]
 }
 
@@ -19,6 +20,7 @@ const STORAGE_KEY = 'chip-calculator-data'
 const defaultData: ChipData = {
   chipsPer100BB: 30000,
   buyInYen: 3000,
+  rake: 0,
   players: [],
 }
 
@@ -78,8 +80,11 @@ export function ChipCalculator() {
     }))
   }
 
+  const [confirmReset, setConfirmReset] = useState(false)
+
   const handleReset = () => {
     setData({ ...defaultData, players: [] })
+    setConfirmReset(false)
   }
 
   // Calculations
@@ -88,7 +93,7 @@ export function ChipCalculator() {
     0
   )
   const totalFinalChips = data.players.reduce((sum, p) => sum + p.finalChips, 0)
-  const chipDiff = totalFinalChips - totalBuyInChips
+  const chipDiff = totalFinalChips + data.rake - totalBuyInChips
   const totalInvestYen = data.players.reduce(
     (sum, p) => sum + data.buyInYen * p.rebuyCount,
     0
@@ -127,6 +132,17 @@ export function ChipCalculator() {
           />
           <span style={{ color: '#888', fontSize: '0.85rem' }}>yen</span>
         </div>
+        <div className="setting-row">
+          <label>Rake =</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={data.rake || ''}
+            onChange={e => update({ rake: Number(e.target.value) || 0 })}
+            placeholder="0"
+          />
+          <span style={{ color: '#888', fontSize: '0.85rem' }}>chips</span>
+        </div>
       </div>
 
       {/* Players */}
@@ -164,10 +180,10 @@ export function ChipCalculator() {
                   <div className="rebuy-control">
                     <button
                       className="rebuy-btn"
-                      disabled={player.rebuyCount <= 1}
+                      disabled={player.rebuyCount <= 0.5}
                       onClick={() =>
                         updatePlayer(player.id, {
-                          rebuyCount: Math.max(1, player.rebuyCount - 1),
+                          rebuyCount: Math.max(0.5, player.rebuyCount - 0.5),
                         })
                       }
                     >
@@ -178,7 +194,7 @@ export function ChipCalculator() {
                       className="rebuy-btn"
                       onClick={() =>
                         updatePlayer(player.id, {
-                          rebuyCount: player.rebuyCount + 1,
+                          rebuyCount: player.rebuyCount + 0.5,
                         })
                       }
                     >
@@ -233,6 +249,12 @@ export function ChipCalculator() {
             <span className="label">Total final chips</span>
             <span className="value">{totalFinalChips.toLocaleString()}</span>
           </div>
+          {data.rake > 0 && (
+            <div className="summary-row">
+              <span className="label">Rake</span>
+              <span className="value">{data.rake.toLocaleString()}</span>
+            </div>
+          )}
           <div className={`chip-diff ${chipDiff === 0 ? 'match' : 'mismatch'}`}>
             {chipDiff === 0
               ? 'Chips match!'
@@ -243,10 +265,27 @@ export function ChipCalculator() {
 
       {/* Reset */}
       <div className="chip-reset-section">
-        <button className="chip-reset-btn" onClick={handleReset}>
+        <button className="chip-reset-btn" onClick={() => setConfirmReset(true)}>
           Reset
         </button>
       </div>
+
+      {/* Confirm Reset Modal */}
+      {confirmReset && (
+        <div className="confirm-overlay" onClick={() => setConfirmReset(false)}>
+          <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+            <p>Reset all data?</p>
+            <div className="confirm-buttons">
+              <button className="confirm-cancel" onClick={() => setConfirmReset(false)}>
+                Cancel
+              </button>
+              <button className="confirm-ok" onClick={handleReset}>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
