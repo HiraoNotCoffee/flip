@@ -99,7 +99,7 @@ export function useGame() {
       const equities = calculateEquity(
         prev.players.map(p => p.hand),
         newBoard,
-        500
+        2000
       )
       const newPlayers = prev.players.map((p, i) => ({
         ...p,
@@ -126,7 +126,7 @@ export function useGame() {
       const equities = calculateEquity(
         prev.players.map(p => p.hand),
         newBoard,
-        500
+        2000
       )
       const newPlayers = prev.players.map((p, i) => ({
         ...p,
@@ -171,6 +171,14 @@ export function useGame() {
       // Get winner hand name
       const winnerIndex = ranks.indexOf(1)
       const winnerHandName = HAND_RANK_NAMES[evaluatedHands[winnerIndex].rank]
+
+      // Debug: log hands and board for verification
+      console.log('[RIVER DEBUG]')
+      console.log('Board:', newBoard.map(c => `${c.rank}${c.suit}`).join(', '))
+      newPlayers.forEach((p, i) => {
+        console.log(`P${i + 1}: ${p.hand.map(c => `${c.rank}${c.suit}`).join(', ')} → ${evaluatedHands[i].rank} (rank #${ranks[i]})`)
+      })
+      console.log(`Winner: P${winnerIndex + 1} - ${winnerHandName}`)
 
       return {
         ...prev,
