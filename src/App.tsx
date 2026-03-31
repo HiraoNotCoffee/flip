@@ -211,8 +211,7 @@ function App() {
 
     // Show current rank from flop onwards (before river results, show interim rank)
     const showInterimRank = isBoardStage && player?.rank != null && !(state.stage === 'river' && !showResults)
-    // Reversal probability: chance of NOT ending up as winner = 100 - equity
-    const reversalPct = 100 - displayEquity
+    const lastPlacePct = player?.lastPlacePct ?? 0
 
     return (
       <div key={index} className={`player-slot ${isWinner ? 'winner' : ''}`}>
@@ -248,7 +247,7 @@ function App() {
           )}
           {showInterimRank && state.stage !== 'river' && playerCount >= 3 && (
             <div className="player-info-badge">
-              <span className="player-reversal">{reversalPct.toFixed(1)}%</span>
+              <span className="player-reversal">{lastPlacePct.toFixed(1)}%</span>
             </div>
           )}
         </div>

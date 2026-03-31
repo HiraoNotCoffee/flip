@@ -11,6 +11,7 @@ export interface Player {
   id: number
   hand: Card[]
   equity: number
+  lastPlacePct: number
   rank: number | null
   evaluatedHand: EvaluatedHand | null
 }
@@ -46,6 +47,7 @@ export function useGame() {
         id: i + 1,
         hand: [deck[deckIndex++], deck[deckIndex++]],
         equity: 0,
+        lastPlacePct: 0,
         rank: null,
         evaluatedHand: null
       })
@@ -78,6 +80,7 @@ export function useGame() {
     )
     players.forEach((p, i) => {
       p.equity = equities[i].equity
+      p.lastPlacePct = equities[i].lastPlacePct
     })
 
     setState({
@@ -106,6 +109,7 @@ export function useGame() {
       const newPlayers = prev.players.map((p, i) => ({
         ...p,
         equity: equities[i].equity,
+        lastPlacePct: equities[i].lastPlacePct,
         rank: ranks[i],
         evaluatedHand: evaluatedHands[i]
       }))
@@ -137,6 +141,7 @@ export function useGame() {
       const newPlayers = prev.players.map((p, i) => ({
         ...p,
         equity: equities[i].equity,
+        lastPlacePct: equities[i].lastPlacePct,
         rank: ranks[i],
         evaluatedHand: evaluatedHands[i]
       }))
@@ -172,6 +177,7 @@ export function useGame() {
       const newPlayers = prev.players.map((p, i) => ({
         ...p,
         equity: equities[i].equity,
+        lastPlacePct: equities[i].lastPlacePct,
         rank: ranks[i],
         evaluatedHand: evaluatedHands[i]
       }))
