@@ -216,6 +216,12 @@
   font-size: 0.8rem;
 }
 
+.player-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .player-label {
   font-weight: 600;
 }
@@ -226,7 +232,11 @@
 
 .player-reversal {
   color: #e74c3c;
-  font-size: 0.85em;
+}
+
+.player-stat-sep {
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 1px;
 }
 
 .player-rank {

@@ -232,22 +232,23 @@ function App() {
           )}
         </div>
         <div className="player-info">
-          <div className="player-info-badge">
+          <div className="player-info-badge player-name-row">
             <span className="player-label">P{index + 1}</span>
+            {showInterimRank && player?.rank != null && (
+              <span className={`player-rank rank-${player.rank}`}>#{player.rank}</span>
+            )}
           </div>
           {player && (
             <div className="player-info-badge">
-              <span className="player-equity">{displayEquity.toFixed(1)}%</span>
-            </div>
-          )}
-          {showInterimRank && player?.rank != null && (
-            <div className={`player-info-badge player-rank rank-${player.rank}`}>
-              #{player.rank}
-            </div>
-          )}
-          {showInterimRank && state.stage !== 'river' && playerCount >= 3 && (
-            <div className="player-info-badge">
-              <span className="player-reversal">{lastPlacePct.toFixed(1)}%</span>
+              {showInterimRank && state.stage !== 'river' && playerCount >= 3 ? (
+                <span>
+                  <span className="player-reversal">{lastPlacePct.toFixed(0)}%</span>
+                  <span className="player-stat-sep">/</span>
+                  <span className="player-equity">{displayEquity.toFixed(0)}%</span>
+                </span>
+              ) : (
+                <span className="player-equity">{displayEquity.toFixed(1)}%</span>
+              )}
             </div>
           )}
         </div>
