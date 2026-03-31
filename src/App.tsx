@@ -52,6 +52,14 @@ function App() {
     }
   }, [state.stage])
 
+  // Auto-deal after update reload
+  useEffect(() => {
+    if (state.stage === 'setup' && localStorage.getItem('flip-pending-deal')) {
+      localStorage.removeItem('flip-pending-deal')
+      deal()
+    }
+  }, [])
+
   // Save equity before river is dealt
   useEffect(() => {
     if (state.stage === 'turn' && state.players.length > 0) {
@@ -117,7 +125,10 @@ function App() {
     switch (state.stage) {
       case 'setup':
         // Check for app update before dealing
-        if (await checkForUpdate()) return // controllerchange will reload
+        if (await checkForUpdate()) {
+          localStorage.setItem('flip-pending-deal', '1')
+          return // controllerchange will reload, then auto-deal
+        }
         deal()
         break
       case 'preflop':
