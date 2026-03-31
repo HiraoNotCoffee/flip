@@ -101,9 +101,13 @@ export function useGame() {
         newBoard,
         2000
       )
+      const evaluatedHands = prev.players.map(p => evaluateHand(p.hand, newBoard))
+      const ranks = rankHands(evaluatedHands)
       const newPlayers = prev.players.map((p, i) => ({
         ...p,
-        equity: equities[i].equity
+        equity: equities[i].equity,
+        rank: ranks[i],
+        evaluatedHand: evaluatedHands[i]
       }))
 
       return {
@@ -128,9 +132,13 @@ export function useGame() {
         newBoard,
         2000
       )
+      const evaluatedHands = prev.players.map(p => evaluateHand(p.hand, newBoard))
+      const ranks = rankHands(evaluatedHands)
       const newPlayers = prev.players.map((p, i) => ({
         ...p,
-        equity: equities[i].equity
+        equity: equities[i].equity,
+        rank: ranks[i],
+        evaluatedHand: evaluatedHands[i]
       }))
 
       return {

@@ -202,11 +202,17 @@ function App() {
     const showCard2 = dealtCards > cardIndex2
 
     const isWinner = showResults && player?.rank === 1
+    const isBoardStage = state.stage === 'flop' || state.stage === 'turn' || state.stage === 'river'
 
     // Show previous equity until river is revealed
     const displayEquity = state.stage === 'river' && !showResults
       ? prevEquities.current[index] ?? player?.equity ?? 0
       : player?.equity ?? 0
+
+    // Show current rank from flop onwards (before river results, show interim rank)
+    const showInterimRank = isBoardStage && player?.rank != null && !(state.stage === 'river' && !showResults)
+    // Reversal probability: chance of NOT ending up as winner = 100 - equity
+    const reversalPct = 100 - displayEquity
 
     return (
       <div key={index} className={`player-slot ${isWinner ? 'winner' : ''}`}>
@@ -235,9 +241,14 @@ function App() {
               <span className="player-equity">{displayEquity.toFixed(1)}%</span>
             </div>
           )}
-          {showResults && player?.rank && (
+          {showInterimRank && player?.rank != null && (
             <div className={`player-info-badge player-rank rank-${player.rank}`}>
               #{player.rank}
+            </div>
+          )}
+          {showInterimRank && state.stage !== 'river' && (
+            <div className="player-info-badge">
+              <span className="player-reversal">{reversalPct.toFixed(1)}%</span>
             </div>
           )}
         </div>
