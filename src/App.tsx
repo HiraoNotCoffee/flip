@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
 import { ChipCalculator } from './components/ChipCalculator'
+import { checkForUpdate } from './main'
 import './App.css'
 
 type Page = 'flip' | 'chip'
@@ -112,9 +113,11 @@ function App() {
     reset()
   }
 
-  const handleAction = () => {
+  const handleAction = async () => {
     switch (state.stage) {
       case 'setup':
+        // Check for app update before dealing
+        if (await checkForUpdate()) return // controllerchange will reload
         deal()
         break
       case 'preflop':
