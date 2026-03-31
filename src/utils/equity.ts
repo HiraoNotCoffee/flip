@@ -14,66 +14,93 @@ function getAvailableCards(usedCards: Card[]): Card[] {
   return deck.filter(card => !usedCards.some(used => isSameCard(card, used)))
 }
 
+function getCombinations(arr: Card[], k: number): Card[][] {
+  if (k === 0) return [[]]
+  if (arr.length < k) return []
+  const [first, ...rest] = arr
+  const withFirst = getCombinations(rest, k - 1).map(combo => [first, ...combo])
+  const withoutFirst = getCombinations(rest, k)
+  return [...withFirst, ...withoutFirst]
+}
+
+function tallyResult(
+  playerHands: Card[][],
+  board: Card[],
+  results: EquityResult[]
+) {
+  const hands = playerHands.map(hand => evaluateHand(hand, board))
+  const ranks = rankHands(hands)
+  const minRank = Math.min(...ranks)
+  const winners = ranks.filter(r => r === minRank).length
+
+  for (let i = 0; i < playerHands.length; i++) {
+    if (ranks[i] === minRank) {
+      if (winners > 1) {
+        results[i].ties++
+      } else {
+        results[i].wins++
+      }
+    }
+  }
+}
+
 export function calculateEquity(
-  playerHands: Card[][], // Array of [card1, card2] for each player
+  playerHands: Card[][],
   boardCards: Card[],
-  iterations: number = 1000
+  iterations: number = 2000
 ): EquityResult[] {
   const numPlayers = playerHands.length
+  const cardsNeeded = 5 - boardCards.length
+  const usedCards = [...boardCards, ...playerHands.flat()]
+  const available = getAvailableCards(usedCards)
+
   const results: EquityResult[] = playerHands.map(() => ({
     wins: 0,
     ties: 0,
-    total: iterations,
+    total: 0,
     equity: 0
   }))
 
-  const cardsNeeded = 5 - boardCards.length
-  const usedCards = [...boardCards, ...playerHands.flat()]
-
   if (cardsNeeded === 0) {
-    // River - just evaluate once
-    const hands = playerHands.map(hand => evaluateHand(hand, boardCards))
-    const ranks = rankHands(hands)
-    const minRank = Math.min(...ranks)
-    const winners = ranks.filter(r => r === minRank).length
-
+    // River - single exact evaluation
+    tallyResult(playerHands, boardCards, results)
+    const minRank = Math.min(...rankHands(playerHands.map(h => evaluateHand(h, boardCards))))
     for (let i = 0; i < numPlayers; i++) {
-      if (ranks[i] === minRank) {
-        if (winners > 1) {
-          results[i].ties = 1
-        } else {
-          results[i].wins = 1
-        }
-      }
       results[i].total = 1
+      const ranks = rankHands(playerHands.map(h => evaluateHand(h, boardCards)))
+      const winners = ranks.filter(r => r === minRank).length
       results[i].equity = ranks[i] === minRank ? 100 / winners : 0
     }
     return results
   }
 
-  // Monte Carlo simulation
-  for (let iter = 0; iter < iterations; iter++) {
-    const available = shuffleDeck(getAvailableCards(usedCards))
-    const simulatedBoard = [...boardCards, ...available.slice(0, cardsNeeded)]
+  if (cardsNeeded <= 2) {
+    // Flop (2 cards needed) or Turn (1 card needed) - exact enumeration
+    const combos = getCombinations(available, cardsNeeded)
 
-    const hands = playerHands.map(hand => evaluateHand(hand, simulatedBoard))
-    const ranks = rankHands(hands)
-    const minRank = Math.min(...ranks)
-    const winners = ranks.filter(r => r === minRank).length
-
-    for (let i = 0; i < numPlayers; i++) {
-      if (ranks[i] === minRank) {
-        if (winners > 1) {
-          results[i].ties++
-        } else {
-          results[i].wins++
-        }
-      }
+    for (const combo of combos) {
+      const simulatedBoard = [...boardCards, ...combo]
+      tallyResult(playerHands, simulatedBoard, results)
     }
+
+    const totalCombos = combos.length
+    for (let i = 0; i < numPlayers; i++) {
+      results[i].total = totalCombos
+      const effectiveWins = results[i].wins + results[i].ties / 2
+      results[i].equity = (effectiveWins / totalCombos) * 100
+    }
+    return results
   }
 
-  // Calculate equity percentages
+  // Preflop - Monte Carlo simulation (too many combos for exact)
+  for (let iter = 0; iter < iterations; iter++) {
+    const shuffled = shuffleDeck([...available])
+    const simulatedBoard = [...boardCards, ...shuffled.slice(0, cardsNeeded)]
+    tallyResult(playerHands, simulatedBoard, results)
+  }
+
   for (let i = 0; i < numPlayers; i++) {
+    results[i].total = iterations
     const effectiveWins = results[i].wins + results[i].ties / 2
     results[i].equity = (effectiveWins / iterations) * 100
   }
