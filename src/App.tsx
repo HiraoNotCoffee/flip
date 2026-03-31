@@ -242,9 +242,9 @@ function App() {
             <div className="player-info-badge">
               {showInterimRank && state.stage !== 'river' && playerCount >= 3 ? (
                 <span>
-                  <span className="player-reversal">{lastPlacePct.toFixed(0)}%</span>
-                  <span className="player-stat-sep">/</span>
                   <span className="player-equity">{displayEquity.toFixed(0)}%</span>
+                  <span className="player-stat-sep">/</span>
+                  <span className="player-reversal">{lastPlacePct.toFixed(0)}%</span>
                 </span>
               ) : (
                 <span className="player-equity">{displayEquity.toFixed(1)}%</span>
