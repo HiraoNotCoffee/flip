@@ -53,7 +53,6 @@ export function CardView({
 
   // 3D flip animation mode - poker app style with swipe
   if (flip) {
-    const isBoard = size === 'board'
     return (
       <div
         className={`card-flip-container card-${size}`}
