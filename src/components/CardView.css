@@ -7,7 +7,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  font-family: 'Georgia', serif;
+  font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
   user-select: none;
 }
 
@@ -34,6 +34,22 @@
   width: 56px;
   height: 78px;
   font-size: 20px;
+}
+
+.card-board .card-center {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-board .card-rank-large {
+  font-size: 1.6em;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.card-board .card-suit-large {
+  font-size: 1.4em;
+  line-height: 1;
 }
 
 .card-placeholder {
@@ -93,7 +109,7 @@
 }
 
 .card-rank-center {
-  font-size: 1.6em;
+  font-size: 22px;
   font-weight: bold;
   line-height: 1;
 }
@@ -218,7 +234,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  font-family: 'Georgia', serif;
+  font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
 }
 
 .card-flip-inner.card-small .card-flip-front { font-size: 11px; }
@@ -256,7 +272,23 @@
 }
 
 .card-flip-front .card-rank-center {
+  font-size: 22px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* Board size flip card styling */
+.card-flip-inner.card-board .card-flip-front .card-center {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-flip-front .card-rank-large {
   font-size: 1.6em;
   font-weight: bold;
   line-height: 1;
+}
+
+.card-flip-front .card-suit-large {
+  font-size: 1.4em;
 }
