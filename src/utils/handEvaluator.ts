@@ -90,6 +90,20 @@ function getStraightHighCard(cards: Card[]): Rank | null {
   return null
 }
 
+// Encode up to 5 card ranks into a single number using base-15 positional system.
+// Ranks are 2-14, so base 15 guarantees no overlap between positions.
+function encodeRanks(...ranks: number[]): number {
+  let value = 0
+  for (let i = 0; i < ranks.length; i++) {
+    value = value * 15 + ranks[i]
+  }
+  return value
+}
+
+// Each hand rank gets a non-overlapping tier (1,000,000 apart).
+// Within a tier, encodeRanks produces at most 15^5 = 759,375 < 1,000,000.
+const TIER = 1000000
+
 function evaluate5Cards(cards: Card[]): EvaluatedHand {
   const rankCounts = countRanks(cards)
   const sortedRanks = cards.map(c => c.rank).sort((a, b) => b - a)
@@ -109,7 +123,7 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
   if (isFlushHand && isStraight && straightHigh === 14) {
     return {
       rank: 'royal_flush',
-      rankValue: 9000000,
+      rankValue: 9 * TIER,
       kickers: [14, 13, 12, 11, 10] as Rank[],
       bestCards: cards
     }
@@ -119,7 +133,7 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
   if (isFlushHand && isStraight) {
     return {
       rank: 'straight_flush',
-      rankValue: 8000000 + straightHigh,
+      rankValue: 8 * TIER + straightHigh,
       kickers: [straightHigh] as Rank[],
       bestCards: cards
     }
@@ -131,7 +145,7 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
     const kicker = counts[1][0]
     return {
       rank: 'four_of_a_kind',
-      rankValue: 7000000 + quadRank * 100 + kicker,
+      rankValue: 7 * TIER + encodeRanks(quadRank, kicker),
       kickers: [quadRank, kicker],
       bestCards: cards
     }
@@ -141,7 +155,7 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
   if (counts[0][1] === 3 && counts[1][1] === 2) {
     return {
       rank: 'full_house',
-      rankValue: 6000000 + counts[0][0] * 100 + counts[1][0],
+      rankValue: 6 * TIER + encodeRanks(counts[0][0], counts[1][0]),
       kickers: [counts[0][0], counts[1][0]],
       bestCards: cards
     }
@@ -149,10 +163,9 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
 
   // Flush
   if (isFlushHand) {
-    const value = sortedRanks.reduce((acc, r, i) => acc + r * Math.pow(15, 4 - i), 0)
     return {
       rank: 'flush',
-      rankValue: 5000000 + value,
+      rankValue: 5 * TIER + encodeRanks(...sortedRanks),
       kickers: sortedRanks.slice(0, 5) as Rank[],
       bestCards: cards
     }
@@ -162,7 +175,7 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
   if (isStraight) {
     return {
       rank: 'straight',
-      rankValue: 4000000 + straightHigh,
+      rankValue: 4 * TIER + straightHigh,
       kickers: [straightHigh] as Rank[],
       bestCards: cards
     }
@@ -174,7 +187,7 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
     const kickers = counts.slice(1).map(c => c[0]).slice(0, 2)
     return {
       rank: 'three_of_a_kind',
-      rankValue: 3000000 + tripRank * 10000 + kickers[0] * 100 + kickers[1],
+      rankValue: 3 * TIER + encodeRanks(tripRank, kickers[0], kickers[1]),
       kickers: [tripRank, ...kickers] as Rank[],
       bestCards: cards
     }
@@ -187,7 +200,7 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
     const kicker = counts[2][0]
     return {
       rank: 'two_pair',
-      rankValue: 2000000 + highPair * 10000 + lowPair * 100 + kicker,
+      rankValue: 2 * TIER + encodeRanks(highPair, lowPair, kicker),
       kickers: [highPair, lowPair, kicker] as Rank[],
       bestCards: cards
     }
@@ -199,17 +212,16 @@ function evaluate5Cards(cards: Card[]): EvaluatedHand {
     const kickers = counts.slice(1).map(c => c[0]).slice(0, 3)
     return {
       rank: 'one_pair',
-      rankValue: 1000000 + pairRank * 100000 + kickers[0] * 1000 + kickers[1] * 10 + kickers[2],
+      rankValue: 1 * TIER + encodeRanks(pairRank, kickers[0], kickers[1], kickers[2]),
       kickers: [pairRank, ...kickers] as Rank[],
       bestCards: cards
     }
   }
 
   // High Card
-  const value = sortedRanks.reduce((acc, r, i) => acc + r * Math.pow(15, 4 - i), 0)
   return {
     rank: 'high_card',
-    rankValue: value,
+    rankValue: encodeRanks(...sortedRanks),
     kickers: sortedRanks.slice(0, 5) as Rank[],
     bestCards: cards
   }

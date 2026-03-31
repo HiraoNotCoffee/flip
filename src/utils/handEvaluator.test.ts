@@ -409,4 +409,99 @@ describe('evaluate5Cards / evaluateHand', () => {
     const hand2 = evaluateHand([c(12, 'spade'), c(2, 'diamond')], board) // A Q 9 5 2
     expect(hand1.rankValue).toBeGreaterThan(hand2.rankValue)
   })
+
+  // === Regression: reported bugs ===
+
+  it('two pair beats one pair (reported: P1 7dQs vs P2 Qd5c, board TcKsQc3d7h)', () => {
+    // P1: 7♦ Q♠ → two pair QQ77 with K kicker
+    // P2: Q♦ 5♣ → one pair QQ with K,T,7 kickers
+    // P1 should win
+    const board = [c(10, 'club'), c(13, 'spade'), c(12, 'club'), c(3, 'diamond'), c(7, 'heart')]
+    const p1 = evaluateHand([c(7, 'diamond'), c(12, 'spade')], board)
+    const p2 = evaluateHand([c(12, 'diamond'), c(5, 'club')], board)
+
+    expect(p1.rank).toBe('two_pair')
+    expect(p2.rank).toBe('one_pair')
+    expect(p1.rankValue).toBeGreaterThan(p2.rankValue)
+
+    const ranks = rankHands([p1, p2])
+    expect(ranks[0]).toBe(1) // P1 wins
+    expect(ranks[1]).toBe(2) // P2 loses
+  })
+
+  // Verify no rank tier overlaps: every hand of rank N must beat every hand of rank N-1
+  it('rank tiers never overlap: two pair always beats one pair', () => {
+    // Worst two pair (33-22 with 4 kicker) vs best one pair (AA with K,Q,J kickers)
+    const worstTwoPair = evaluateHand(
+      [c(3, 'spade'), c(3, 'heart')],
+      [c(2, 'diamond'), c(2, 'club'), c(4, 'spade')]
+    )
+    const bestOnePair = evaluateHand(
+      [c(14, 'spade'), c(14, 'heart')],
+      [c(13, 'diamond'), c(12, 'club'), c(11, 'spade')]
+    )
+    expect(worstTwoPair.rank).toBe('two_pair')
+    expect(bestOnePair.rank).toBe('one_pair')
+    expect(worstTwoPair.rankValue).toBeGreaterThan(bestOnePair.rankValue)
+  })
+
+  it('rank tiers never overlap: three of a kind always beats two pair', () => {
+    const worstTrips = evaluateHand(
+      [c(2, 'spade'), c(2, 'heart')],
+      [c(2, 'diamond'), c(3, 'club'), c(4, 'spade')]
+    )
+    const bestTwoPair = evaluateHand(
+      [c(14, 'spade'), c(14, 'heart')],
+      [c(13, 'diamond'), c(13, 'club'), c(12, 'spade')]
+    )
+    expect(worstTrips.rankValue).toBeGreaterThan(bestTwoPair.rankValue)
+  })
+
+  it('rank tiers never overlap: straight always beats three of a kind', () => {
+    const worstStraight = evaluateHand(
+      [c(14, 'spade'), c(2, 'heart')],
+      [c(3, 'diamond'), c(4, 'club'), c(5, 'spade')]
+    )
+    const bestTrips = evaluateHand(
+      [c(14, 'heart'), c(14, 'diamond')],
+      [c(14, 'club'), c(13, 'spade'), c(12, 'heart')]
+    )
+    expect(worstStraight.rankValue).toBeGreaterThan(bestTrips.rankValue)
+  })
+
+  it('rank tiers never overlap: flush always beats straight', () => {
+    const worstFlush = evaluateHand(
+      [c(2, 'heart'), c(3, 'heart')],
+      [c(4, 'heart'), c(5, 'heart'), c(7, 'heart')]
+    )
+    const bestStraight = evaluateHand(
+      [c(10, 'spade'), c(11, 'heart')],
+      [c(12, 'diamond'), c(13, 'club'), c(14, 'spade')]
+    )
+    expect(worstFlush.rankValue).toBeGreaterThan(bestStraight.rankValue)
+  })
+
+  it('rank tiers never overlap: full house always beats flush', () => {
+    const worstFullHouse = evaluateHand(
+      [c(2, 'spade'), c(2, 'heart')],
+      [c(2, 'diamond'), c(3, 'club'), c(3, 'spade')]
+    )
+    const bestFlush = evaluateHand(
+      [c(14, 'heart'), c(13, 'heart')],
+      [c(12, 'heart'), c(11, 'heart'), c(9, 'heart')]
+    )
+    expect(worstFullHouse.rankValue).toBeGreaterThan(bestFlush.rankValue)
+  })
+
+  it('rank tiers never overlap: four of a kind always beats full house', () => {
+    const worstQuads = evaluateHand(
+      [c(2, 'spade'), c(2, 'heart')],
+      [c(2, 'diamond'), c(2, 'club'), c(3, 'spade')]
+    )
+    const bestFullHouse = evaluateHand(
+      [c(14, 'spade'), c(14, 'heart')],
+      [c(14, 'diamond'), c(13, 'club'), c(13, 'spade')]
+    )
+    expect(worstQuads.rankValue).toBeGreaterThan(bestFullHouse.rankValue)
+  })
 })
