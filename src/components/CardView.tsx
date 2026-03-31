@@ -68,26 +68,15 @@ export function CardView({
           </div>
           {/* Front of card */}
           <div className="card-flip-front" style={{ color }}>
-            {isBoard ? (
-              <div className="card-center">
-                <span className="card-rank-large">{rank}</span>
-                <span className="card-suit-large">{symbol}</span>
-              </div>
-            ) : (
-              <>
-                <div className="card-corner top-left">
-                  <span className="card-rank">{rank}</span>
-                  <span className="card-suit">{symbol}</span>
-                </div>
-                <div className="card-center">
-                  <span className="card-suit-large">{symbol}</span>
-                </div>
-                <div className="card-corner bottom-right">
-                  <span className="card-rank">{rank}</span>
-                  <span className="card-suit">{symbol}</span>
-                </div>
-              </>
-            )}
+            <div className="card-corner top-left">
+              <span className="card-suit">{symbol}</span>
+            </div>
+            <div className="card-center">
+              <span className="card-rank-center">{rank}</span>
+            </div>
+            <div className="card-corner bottom-right">
+              <span className="card-suit">{symbol}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -105,29 +94,15 @@ export function CardView({
     )
   }
 
-  // Board size - show rank prominently in center
-  if (size === 'board') {
-    return (
-      <div className={`card card-board`} style={{ color }}>
-        <div className="card-center">
-          <span className="card-rank-large">{rank}</span>
-          <span className="card-suit-large">{symbol}</span>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className={`card card-${size}`} style={{ color }}>
       <div className="card-corner top-left">
-        <span className="card-rank">{rank}</span>
         <span className="card-suit">{symbol}</span>
       </div>
       <div className="card-center">
-        <span className="card-suit-large">{symbol}</span>
+        <span className="card-rank-center">{rank}</span>
       </div>
       <div className="card-corner bottom-right">
-        <span className="card-rank">{rank}</span>
         <span className="card-suit">{symbol}</span>
       </div>
     </div>

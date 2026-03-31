@@ -36,26 +36,6 @@
   font-size: 20px;
 }
 
-.card-board .card-corner {
-  display: none;
-}
-
-.card-board .card-center {
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card-board .card-rank-large {
-  font-size: 1.6em;
-  font-weight: bold;
-  line-height: 1;
-}
-
-.card-board .card-suit-large {
-  font-size: 1.4em;
-  line-height: 1;
-}
-
 .card-placeholder {
   background: transparent;
   border: 2px dashed rgba(255, 255, 255, 0.3);
@@ -91,13 +71,8 @@
   gap: 1px;
 }
 
-.card-corner .card-rank {
-  font-weight: bold;
-}
-
 .card-corner .card-suit {
-  font-size: 0.8em;
-  margin-top: 1px;
+  font-size: 1em;
 }
 
 .top-left {
@@ -117,8 +92,10 @@
   align-items: center;
 }
 
-.card-suit-large {
-  font-size: 1.4em;
+.card-rank-center {
+  font-size: 1.6em;
+  font-weight: bold;
+  line-height: 1;
 }
 
 .card-squeeze {
@@ -255,16 +232,10 @@
   flex-direction: column;
   align-items: center;
   line-height: 1;
-  gap: 1px;
-}
-
-.card-flip-front .card-corner .card-rank {
-  font-weight: bold;
 }
 
 .card-flip-front .card-corner .card-suit {
-  font-size: 0.8em;
-  margin-top: 1px;
+  font-size: 1em;
 }
 
 .card-flip-front .top-left {
@@ -284,17 +255,7 @@
   align-items: center;
 }
 
-.card-flip-front .card-suit-large {
-  font-size: 1.4em;
-}
-
-/* Board size flip card styling */
-.card-flip-inner.card-board .card-flip-front .card-center {
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card-flip-front .card-rank-large {
+.card-flip-front .card-rank-center {
   font-size: 1.6em;
   font-weight: bold;
   line-height: 1;
