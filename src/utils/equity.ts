@@ -92,17 +92,35 @@ export function calculateEquity(
     return results
   }
 
-  // Preflop - Monte Carlo simulation (too many combos for exact)
-  for (let iter = 0; iter < iterations; iter++) {
+  // Preflop heads-up: exact enumeration (C(48,5) ≈ 1.7M combos)
+  if (cardsNeeded === 5 && numPlayers === 2) {
+    const combos = getCombinations(available, 5)
+
+    for (const combo of combos) {
+      tallyResult(playerHands, combo, results)
+    }
+
+    const totalCombos = combos.length
+    for (let i = 0; i < numPlayers; i++) {
+      results[i].total = totalCombos
+      const effectiveWins = results[i].wins + results[i].ties / 2
+      results[i].equity = (effectiveWins / totalCombos) * 100
+    }
+    return results
+  }
+
+  // Preflop multiway - Monte Carlo simulation
+  const mcIterations = Math.max(iterations, 5000)
+  for (let iter = 0; iter < mcIterations; iter++) {
     const shuffled = shuffleDeck([...available])
     const simulatedBoard = [...boardCards, ...shuffled.slice(0, cardsNeeded)]
     tallyResult(playerHands, simulatedBoard, results)
   }
 
   for (let i = 0; i < numPlayers; i++) {
-    results[i].total = iterations
+    results[i].total = mcIterations
     const effectiveWins = results[i].wins + results[i].ties / 2
-    results[i].equity = (effectiveWins / iterations) * 100
+    results[i].equity = (effectiveWins / mcIterations) * 100
   }
 
   return results

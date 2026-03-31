@@ -504,4 +504,29 @@ describe('evaluate5Cards / evaluateHand', () => {
     )
     expect(worstQuads.rankValue).toBeGreaterThan(bestFullHouse.rankValue)
   })
+
+  it('8-way: 88 wins over AQ with board KK (reported multiway bug)', () => {
+    // Board: Kd 5c Kc 4h 2d
+    const board = [c(13, 'diamond'), c(5, 'club'), c(13, 'club'), c(4, 'heart'), c(2, 'diamond')]
+    const p1 = evaluateHand([c(9, 'club'), c(4, 'club')], board)       // KK44 kicker 9
+    const p2 = evaluateHand([c(14, 'heart'), c(9, 'diamond')], board)   // KK kicker A,9,5
+    const p3 = evaluateHand([c(6, 'heart'), c(7, 'diamond')], board)    // KK kicker 7,6,5
+    const p4 = evaluateHand([c(14, 'club'), c(12, 'club')], board)      // KK kicker A,Q,5
+    const p5 = evaluateHand([c(8, 'heart'), c(8, 'spade')], board)      // KK88 kicker 5
+    const p6 = evaluateHand([c(9, 'spade'), c(7, 'heart')], board)      // KK kicker 9,7,5
+    const p7 = evaluateHand([c(4, 'diamond'), c(11, 'diamond')], board) // KK44 kicker J
+    const p8 = evaluateHand([c(4, 'spade'), c(12, 'heart')], board)     // KK44 kicker Q
+
+    // P5 (KK88) should be #1
+    expect(p5.rank).toBe('two_pair')
+    expect(p4.rank).toBe('one_pair')
+    expect(p5.rankValue).toBeGreaterThan(p4.rankValue)
+
+    const ranks = rankHands([p1, p2, p3, p4, p5, p6, p7, p8])
+    expect(ranks[4]).toBe(1) // P5 = winner
+
+    // Two pairs beat one pairs
+    expect(ranks[0]).toBeLessThan(ranks[1]) // P1 (two pair) beats P2 (one pair)
+    expect(ranks[0]).toBeLessThan(ranks[3]) // P1 (two pair) beats P4 (one pair)
+  })
 })
