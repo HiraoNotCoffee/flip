@@ -27,6 +27,7 @@ function App() {
     return saved === 'chip' ? 'chip' : 'flip'
   })
   const [menuOpen, setMenuOpen] = useState(false)
+  const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('flip-app-page', page)
@@ -125,10 +126,12 @@ function App() {
     switch (state.stage) {
       case 'setup':
         // Check for app update before dealing
+        setUpdating(true)
         if (await checkForUpdate()) {
           localStorage.setItem('flip-pending-deal', '1')
           return // controllerchange will reload, then auto-deal
         }
+        setUpdating(false)
         deal()
         break
       case 'preflop':
@@ -286,6 +289,11 @@ function App() {
 
   return (
     <div className={`app ${specialMode && page === 'flip' ? 'special-mode' : ''}`}>
+      {updating && (
+        <div className="update-overlay">
+          <div className="update-message">アップデート中...</div>
+        </div>
+      )}
       <header className="header">
         <div className="header-left">
           <button className="hamburger-btn" onClick={() => setMenuOpen(o => !o)}>
