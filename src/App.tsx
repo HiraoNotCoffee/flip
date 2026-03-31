@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
 import { ChipCalculator } from './components/ChipCalculator'
-import { checkForUpdate } from './main'
+import { checkForUpdate } from './swUpdate'
 import './App.css'
 
 type Page = 'flip' | 'chip'

@@ -102,19 +102,7 @@ export function calculateEquity(
     return buildResults(tally, combos.length)
   }
 
-  // Preflop heads-up: exact enumeration (C(48,5) ≈ 1.7M combos)
-  if (cardsNeeded === 5 && numPlayers === 2) {
-    const combos = getCombinations(available, 5)
-    const tally = createTally(numPlayers)
-
-    for (const combo of combos) {
-      tallyResult(playerHands, combo, tally)
-    }
-
-    return buildResults(tally, combos.length)
-  }
-
-  // Preflop multiway - Monte Carlo simulation
+  // Preflop - Monte Carlo simulation
   const mcIterations = Math.max(iterations, 5000)
   const tally = createTally(numPlayers)
 
