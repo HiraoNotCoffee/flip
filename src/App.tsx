@@ -246,7 +246,7 @@ function App() {
               #{player.rank}
             </div>
           )}
-          {showInterimRank && state.stage !== 'river' && (
+          {showInterimRank && state.stage !== 'river' && playerCount >= 3 && (
             <div className="player-info-badge">
               <span className="player-reversal">{reversalPct.toFixed(1)}%</span>
             </div>
