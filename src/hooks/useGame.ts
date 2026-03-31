@@ -74,7 +74,7 @@ export function useGame() {
     const equities = calculateEquity(
       players.map(p => p.hand),
       [],
-      500
+      2000
     )
     players.forEach((p, i) => {
       p.equity = equities[i].equity
