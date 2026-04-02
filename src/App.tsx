@@ -213,8 +213,19 @@ function App() {
     const showInterimRank = isBoardStage && player?.rank != null && !(state.stage === 'river' && !showResults)
     const lastPlacePct = player?.lastPlacePct ?? 0
 
+    const maxRank = state.players.length > 0 ? Math.max(...state.players.map(p => p.rank ?? 0)) : 0
+    const isLastPlace = showInterimRank && player?.rank === maxRank && maxRank > 1
+    const isCurrentFirst = showInterimRank && player?.rank === 1
+
+    const slotClass = [
+      'player-slot',
+      isWinner ? 'winner' : '',
+      isCurrentFirst && !showResults ? 'current-first' : '',
+      isLastPlace && !showResults ? 'current-last' : ''
+    ].filter(Boolean).join(' ')
+
     return (
-      <div key={index} className={`player-slot ${isWinner ? 'winner' : ''}`}>
+      <div key={index} className={slotClass}>
         <div className="player-cards">
           {showCard1 ? (
             <div className="card-dealing">
