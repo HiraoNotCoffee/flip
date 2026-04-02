@@ -1,6 +1,7 @@
-import type { Card } from './card'
+import type { Card, Rank } from './card'
 import { createDeck, isSameCard, shuffleDeck } from './card'
 import { evaluateHand, rankHands } from './handEvaluator'
+import preflopTable from './preflopTable.json'
 
 export interface EquityResult {
   wins: number
@@ -8,6 +9,30 @@ export interface EquityResult {
   total: number
   equity: number // percentage 0-100
   lastPlacePct: number // probability of finishing last (0-100)
+}
+
+// Canonical hand type: "14-14" (pair), "14-13s" (suited), "14-13o" (offsuit)
+function handType(c1: Card, c2: Card): string {
+  const high = Math.max(c1.rank, c2.rank) as Rank
+  const low = Math.min(c1.rank, c2.rank) as Rank
+  if (high === low) return `${high}-${low}`
+  const suited = c1.suit === c2.suit ? 's' : 'o'
+  return `${high}-${low}${suited}`
+}
+
+const preflopLookup = preflopTable as Record<string, number>
+
+function lookupPreflopEquity(hand1: Card[], hand2: Card[]): number | null {
+  const t1 = handType(hand1[0], hand1[1])
+  const t2 = handType(hand2[0], hand2[1])
+
+  const key1 = `${t1}|${t2}`
+  if (key1 in preflopLookup) return preflopLookup[key1]
+
+  const key2 = `${t2}|${t1}`
+  if (key2 in preflopLookup) return 100 - preflopLookup[key2]
+
+  return null
 }
 
 function getAvailableCards(usedCards: Card[]): Card[] {
@@ -100,6 +125,17 @@ export function calculateEquity(
     }
 
     return buildResults(tally, combos.length)
+  }
+
+  // Preflop heads-up: use lookup table
+  if (cardsNeeded === 5 && numPlayers === 2) {
+    const eq = lookupPreflopEquity(playerHands[0], playerHands[1])
+    if (eq !== null) {
+      return [
+        { wins: 0, ties: 0, total: 1, equity: eq, lastPlacePct: 100 - eq },
+        { wins: 0, ties: 0, total: 1, equity: 100 - eq, lastPlacePct: eq }
+      ]
+    }
   }
 
   // Preflop - Monte Carlo simulation
