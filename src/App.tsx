@@ -214,14 +214,12 @@ function App() {
     const lastPlacePct = player?.lastPlacePct ?? 0
 
     const maxRank = state.players.length > 0 ? Math.max(...state.players.map(p => p.rank ?? 0)) : 0
-    const isLastPlace = showInterimRank && player?.rank === maxRank && maxRank > 1
-    const isCurrentFirst = showInterimRank && player?.rank === 1
+    const isLastPlace = showResults && player?.rank === maxRank && maxRank > 1
 
     const slotClass = [
       'player-slot',
       isWinner ? 'winner' : '',
-      isCurrentFirst && !showResults ? 'current-first' : '',
-      isLastPlace && !showResults ? 'current-last' : ''
+      isLastPlace ? 'current-last' : ''
     ].filter(Boolean).join(' ')
 
     return (
