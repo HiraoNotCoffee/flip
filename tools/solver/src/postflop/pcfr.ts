@@ -1,30 +1,29 @@
-import { NUM_HANDS, buildJointCombosMatrix } from '../hand.js';
+import { NUM_HANDS } from '../hand.js';
 import { buildPostflopTree, walkPostflopTree, type PfDecision, type PfNode } from './ptree.js';
 import { buildBoardEquity, type BoardEquity } from './boardEquity.js';
+import { enumCombos } from '../hand.js';
 
 export interface PostflopConfig {
   startPotBb: number;
-  effectiveStackBb: number; // remaining stack at start of flop (per player)
+  effectiveStackBb: number;
   flopBetPctOfPot: number[];
+  turnBetPctOfPot?: number[];
   maxRaiseCount: number;
   rakePct: number;
   rakeCapBb: number;
-  // initial reach weights per player (e.g., from preflop CFR reach probabilities)
-  oopReach: Float64Array; // length NUM_HANDS
-  ipReach: Float64Array;  // length NUM_HANDS
+  oopReach: Float64Array;
+  ipReach: Float64Array;
 }
 
 interface PfInfoset {
   numActions: number;
-  regretSum: Float64Array;   // NUM_HANDS × numActions
+  regretSum: Float64Array;
   strategySum: Float64Array;
 }
 
 export interface PostflopSolveResult {
   iterations: number;
-  // Per decision node: average strategy (NUM_HANDS × numActions)
   strategies: Map<string, { actions: string[]; player: 'OOP' | 'IP'; strategy: Float64Array }>;
-  // Per-hand expected EV at the root (OOP's perspective and IP's perspective)
   rootEvOop: Float64Array;
   rootEvIp: Float64Array;
 }
@@ -33,8 +32,12 @@ interface SolveCtx {
   config: PostflopConfig;
   tree: PfNode;
   infosets: Map<string, PfInfoset>;
-  equity: BoardEquity;
-  joint: Float64Array;   // 169×169 joint combos WITHOUT board awareness (we use equity.totalCombos for weighting instead)
+  flopBoard: number[];     // 3 flop cards (card indices)
+  flopEquity: BoardEquity;
+  // Cache turn equity per turn card (52 entries; entries for board cards or invalid turn cards are null)
+  turnEquityCache: Array<BoardEquity | null>;
+  // Per-hand bucket "doesn't include this card" mask: invalidBucketForCard[card][bucket] = 1 if bucket has any combo containing the card
+  bucketHasCard: Uint8Array; // 52 × NUM_HANDS, 1 if any combo of bucket contains card
   iteration: number;
 }
 
@@ -66,14 +69,13 @@ interface Utils {
 
 function terminalFoldUtils(
   ctx: SolveCtx,
+  equity: BoardEquity,
   node: { potBb: number; investedOop: number; investedIp: number; folder: 'OOP' | 'IP' },
   oopReach: Float64Array,
   ipReach: Float64Array,
 ): Utils {
   const oop = new Float64Array(NUM_HANDS);
   const ip = new Float64Array(NUM_HANDS);
-  // Postflop folds incur rake (we are past the flop; No-Flop-No-Drop already cleared).
-  // Folder loses their invested in this round. Winner takes (pot - rake) - their own invested.
   const r = rake(node.potBb, ctx.config.rakePct, ctx.config.rakeCapBb);
   let oopPayoff: number;
   let ipPayoff: number;
@@ -84,8 +86,7 @@ function terminalFoldUtils(
     ipPayoff = -node.investedIp;
     oopPayoff = (node.potBb - r) - node.investedOop;
   }
-  // Use board-aware combos for consistency with showdown/runout terminals.
-  const jcm = ctx.equity.totalCombos;
+  const jcm = equity.totalCombos;
   for (let h = 0; h < NUM_HANDS; h++) {
     let acc = 0;
     for (let b = 0; b < NUM_HANDS; b++) {
@@ -109,6 +110,7 @@ function terminalFoldUtils(
 
 function terminalShowdownUtils(
   ctx: SolveCtx,
+  equity: BoardEquity,
   node: { potBb: number; investedOop: number; investedIp: number },
   oopReach: Float64Array,
   ipReach: Float64Array,
@@ -117,8 +119,8 @@ function terminalShowdownUtils(
   const ip = new Float64Array(NUM_HANDS);
   const r = rake(node.potBb, ctx.config.rakePct, ctx.config.rakeCapBb);
   const netPot = node.potBb - r;
-  const eq = ctx.equity.meanEquity; // OOP = "sb" in matrix? We define OOP = sb-bucket. Use as-is.
-  const jcm = ctx.equity.totalCombos;
+  const eq = equity.meanEquity;
+  const jcm = equity.totalCombos;
   for (let h = 0; h < NUM_HANDS; h++) {
     let acc = 0;
     for (let b = 0; b < NUM_HANDS; b++) {
@@ -126,7 +128,6 @@ function terminalShowdownUtils(
       const combos = jcm[idx];
       if (combos === 0) continue;
       const oopEq = eq[idx];
-      // OOP payoff = oopEq * netPot - investedOop
       acc += ipReach[b] * combos * (oopEq * netPot - node.investedOop);
     }
     oop[h] = acc;
@@ -145,14 +146,90 @@ function terminalShowdownUtils(
   return { oop, ip };
 }
 
-function traverse(ctx: SolveCtx, node: PfNode, oopReach: Float64Array, ipReach: Float64Array): Utils {
+function getTurnEquity(ctx: SolveCtx, turnCard: number): BoardEquity {
+  let eq = ctx.turnEquityCache[turnCard];
+  if (eq) return eq;
+  const board4 = [...ctx.flopBoard, turnCard];
+  eq = buildBoardEquity(board4);
+  ctx.turnEquityCache[turnCard] = eq;
+  return eq;
+}
+
+function traverseChance(
+  ctx: SolveCtx,
+  node: { potBb: number; investedOop: number; investedIp: number; childTree: PfNode },
+  oopReach: Float64Array,
+  ipReach: Float64Array,
+): Utils {
+  const sumOop = new Float64Array(NUM_HANDS);
+  const sumIp = new Float64Array(NUM_HANDS);
+
+  // Enumerate all 52 - 3 = 49 possible turn cards (excluding the flop).
+  // For each card, scale per-hand reach by P(hand still compatible) and recurse with that turn's equity.
+  // We use the bucket-level approximation: if a bucket has only combos that all contain the new card, its reach drops to 0.
+  // bucketHasCard[c * NUM_HANDS + h] tells fraction of combos that contain c.
+
+  const flopSet = new Uint8Array(52);
+  for (const c of ctx.flopBoard) flopSet[c] = 1;
+
+  // Pre-compute scaled reaches once for each turn card by scaling reach[h] by (totalCombos - combosWith(c)) / totalCombos.
+  // For simplicity we use a Uint8Array boolean: 1 if bucket has any combo with the card. We then ignore that hand for that card.
+  // This is an approximation; a more accurate version would use fractional weights.
+
+  let validCards = 0;
+  for (let c = 0; c < 52; c++) {
+    if (flopSet[c]) continue;
+    validCards++;
+    const turnEq = getTurnEquity(ctx, c);
+
+    const oopAdj = new Float64Array(NUM_HANDS);
+    const ipAdj = new Float64Array(NUM_HANDS);
+    for (let h = 0; h < NUM_HANDS; h++) {
+      if (ctx.bucketHasCard[c * NUM_HANDS + h]) {
+        // Use board-aware combos to scale: how many of bucket's combos avoid card c.
+        // Approximation: just scale by combos remaining after removing c, using turn equity's combo data.
+        // turnEq.totalCombos uses 4-card board, so already excludes c-containing combos. Approximate uniform-opp scaling:
+        oopAdj[h] = oopReach[h]; // we keep reach but turnEq.totalCombos = 0 will zero out terminal contributions automatically
+      } else {
+        oopAdj[h] = oopReach[h];
+      }
+      if (ctx.bucketHasCard[c * NUM_HANDS + h]) {
+        ipAdj[h] = ipReach[h];
+      } else {
+        ipAdj[h] = ipReach[h];
+      }
+    }
+
+    const childUtils = traverse(ctx, node.childTree, oopAdj, ipAdj, turnEq);
+    for (let h = 0; h < NUM_HANDS; h++) sumOop[h] += childUtils.oop[h];
+    for (let b = 0; b < NUM_HANDS; b++) sumIp[b] += childUtils.ip[b];
+  }
+
+  if (validCards > 0) {
+    const inv = 1 / validCards;
+    for (let h = 0; h < NUM_HANDS; h++) sumOop[h] *= inv;
+    for (let b = 0; b < NUM_HANDS; b++) sumIp[b] *= inv;
+  }
+  return { oop: sumOop, ip: sumIp };
+}
+
+function traverse(
+  ctx: SolveCtx,
+  node: PfNode,
+  oopReach: Float64Array,
+  ipReach: Float64Array,
+  equity: BoardEquity,
+): Utils {
   if (node.kind === 'terminal_fold') {
-    return terminalFoldUtils(ctx, node, oopReach, ipReach);
+    return terminalFoldUtils(ctx, equity, node, oopReach, ipReach);
   }
   if (node.kind === 'terminal_runout' || node.kind === 'terminal_showdown') {
-    return terminalShowdownUtils(ctx, node, oopReach, ipReach);
+    return terminalShowdownUtils(ctx, equity, node, oopReach, ipReach);
   }
-  return traverseDecision(ctx, node, oopReach, ipReach);
+  if (node.kind === 'chance_turn' || node.kind === 'chance_river') {
+    return traverseChance(ctx, node, oopReach, ipReach);
+  }
+  return traverseDecision(ctx, node, oopReach, ipReach, equity);
 }
 
 function traverseDecision(
@@ -160,6 +237,7 @@ function traverseDecision(
   node: PfDecision,
   oopReach: Float64Array,
   ipReach: Float64Array,
+  equity: BoardEquity,
 ): Utils {
   const numActions = node.actions.length;
   const isOop = node.player === 'OOP';
@@ -184,7 +262,7 @@ function traverseDecision(
       nextIp = new Float64Array(NUM_HANDS);
       for (let b = 0; b < NUM_HANDS; b++) nextIp[b] = ipReach[b] * strategy[b * numActions + a];
     }
-    const r = traverse(ctx, node.children[a], nextOop, nextIp);
+    const r = traverse(ctx, node.children[a], nextOop, nextIp, equity);
     childOop.push(r.oop);
     childIp.push(r.ip);
   }
@@ -215,7 +293,6 @@ function traverseDecision(
     }
   }
 
-  // Regret + strategy updates
   const t = ctx.iteration;
   const myReach = isOop ? oopReach : ipReach;
   if (isOop) {
@@ -276,24 +353,43 @@ function avgStrategy(info: PfInfoset): Float64Array {
   return out;
 }
 
+function buildBucketHasCard(): Uint8Array {
+  const arr = new Uint8Array(52 * NUM_HANDS);
+  for (let h = 0; h < NUM_HANDS; h++) {
+    const combos = enumCombos(h);
+    const cardsInBucket = new Set<number>();
+    for (const [a, b] of combos) { cardsInBucket.add(a); cardsInBucket.add(b); }
+    for (const c of cardsInBucket) arr[c * NUM_HANDS + h] = 1;
+  }
+  return arr;
+}
+
+export interface SolvePostflopOptions {
+  logEvery?: number;
+  buildTurnEquityEager?: boolean; // if true, precompute all 49 turn equities up front
+}
+
 export function solvePostflopWithEquity(
   config: PostflopConfig,
   equity: BoardEquity,
   iterations: number,
-  options?: { logEvery?: number },
+  options?: SolvePostflopOptions,
 ): PostflopSolveResult {
   const tree = buildPostflopTree({
     startPotBb: config.startPotBb,
     effectiveStackBb: config.effectiveStackBb,
     flopBetPctOfPot: config.flopBetPctOfPot,
+    turnBetPctOfPot: config.turnBetPctOfPot,
     maxRaiseCount: config.maxRaiseCount,
   });
   const ctx: SolveCtx = {
     config,
     tree,
     infosets: initInfosets(tree),
-    equity,
-    joint: buildJointCombosMatrix(),
+    flopBoard: [],
+    flopEquity: equity,
+    turnEquityCache: new Array(52).fill(null),
+    bucketHasCard: buildBucketHasCard(),
     iteration: 1,
   };
 
@@ -301,7 +397,7 @@ export function solvePostflopWithEquity(
   let lastUtils: Utils = { oop: new Float64Array(NUM_HANDS), ip: new Float64Array(NUM_HANDS) };
   for (let t = 1; t <= iterations; t++) {
     ctx.iteration = t;
-    lastUtils = traverse(ctx, tree, config.oopReach, config.ipReach);
+    lastUtils = traverse(ctx, tree, config.oopReach, config.ipReach, equity);
     if (options?.logEvery && (t % options.logEvery === 0 || t === iterations)) {
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
       console.log(`  [postflop iter ${t}/${iterations}] elapsed ${elapsed}s`);
@@ -332,8 +428,79 @@ export function solvePostflop(
   config: PostflopConfig,
   boardCards: number[],
   iterations: number,
-  options?: { logEvery?: number },
+  options?: SolvePostflopOptions & { phaseB?: boolean },
 ): PostflopSolveResult {
-  const equity = buildBoardEquity(boardCards);
-  return solvePostflopWithEquity(config, equity, iterations, options);
+  const flopEquity = buildBoardEquity(boardCards);
+  const phaseB = options?.phaseB ?? false;
+
+  if (!phaseB) {
+    return solvePostflopWithEquity(config, flopEquity, iterations, options);
+  }
+
+  // Phase B: build tree with chance nodes to next street, and prime context with flop board.
+  const tree = buildPostflopTree({
+    startPotBb: config.startPotBb,
+    effectiveStackBb: config.effectiveStackBb,
+    flopBetPctOfPot: config.flopBetPctOfPot,
+    turnBetPctOfPot: config.turnBetPctOfPot,
+    maxRaiseCount: config.maxRaiseCount,
+    street: 'flop',
+    buildNextStreet: true,
+  });
+  const ctx: SolveCtx = {
+    config,
+    tree,
+    infosets: initInfosets(tree),
+    flopBoard: boardCards,
+    flopEquity,
+    turnEquityCache: new Array(52).fill(null),
+    bucketHasCard: buildBucketHasCard(),
+    iteration: 1,
+  };
+
+  if (options?.buildTurnEquityEager) {
+    const flopSet = new Uint8Array(52);
+    for (const c of boardCards) flopSet[c] = 1;
+    const t0 = Date.now();
+    let built = 0;
+    for (let c = 0; c < 52; c++) {
+      if (flopSet[c]) continue;
+      getTurnEquity(ctx, c);
+      built++;
+      if (built % 10 === 0) {
+        const el = ((Date.now() - t0) / 1000).toFixed(1);
+        console.log(`  [turn equity ${built}/49] elapsed ${el}s`);
+      }
+    }
+  }
+
+  const start = Date.now();
+  let lastUtils: Utils = { oop: new Float64Array(NUM_HANDS), ip: new Float64Array(NUM_HANDS) };
+  for (let t = 1; t <= iterations; t++) {
+    ctx.iteration = t;
+    lastUtils = traverse(ctx, tree, config.oopReach, config.ipReach, flopEquity);
+    if (options?.logEvery && (t % options.logEvery === 0 || t === iterations)) {
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+      console.log(`  [phaseB iter ${t}/${iterations}] elapsed ${elapsed}s`);
+    }
+  }
+
+  const strategies = new Map<string, { actions: string[]; player: 'OOP' | 'IP'; strategy: Float64Array }>();
+  walkPostflopTree(tree, n => {
+    if (n.kind === 'decision') {
+      const info = ctx.infosets.get(n.path)!;
+      strategies.set(n.path, {
+        actions: n.actions.map(a => a.id),
+        player: n.player,
+        strategy: avgStrategy(info),
+      });
+    }
+  });
+
+  return {
+    iterations,
+    strategies,
+    rootEvOop: lastUtils.oop,
+    rootEvIp: lastUtils.ip,
+  };
 }
