@@ -1,0 +1,15 @@
+{
+  "name": "flip-solver",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "solve": "tsx src/runner.ts",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "~5.9.3",
+    "@types/node": "^24.10.1"
+  }
+}

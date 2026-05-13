@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
 import { ChipCalculator } from './components/ChipCalculator'
+import { GtoRange } from './components/GtoRange'
+import { Blackjack } from './components/Blackjack'
 import { checkForUpdate } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip'
+type Page = 'flip' | 'chip' | 'gto' | 'blackjack'
 
 function App() {
   const {
@@ -24,7 +26,10 @@ function App() {
   // Page / menu state (persist across reload)
   const [page, setPage] = useState<Page>(() => {
     const saved = localStorage.getItem('flip-app-page')
-    return saved === 'chip' ? 'chip' : 'flip'
+    if (saved === 'chip') return 'chip'
+    if (saved === 'gto') return 'gto'
+    if (saved === 'blackjack') return 'blackjack'
+    return 'flip'
   })
   const [menuOpen, setMenuOpen] = useState(false)
   const [updating, setUpdating] = useState(false)
@@ -319,7 +324,12 @@ function App() {
           <button className="hamburger-btn" onClick={() => setMenuOpen(o => !o)}>
             ☰
           </button>
-          <h1>{page === 'flip' ? 'Texas Holdem Flipout' : 'Chip Calculator'}</h1>
+          <h1>{
+            page === 'flip' ? 'Texas Holdem Flipout' :
+            page === 'chip' ? 'Chip Calculator' :
+            page === 'gto' ? 'GTO Range' :
+            'Blackjack Count'
+          }</h1>
         </div>
         {page === 'flip' && (
           <div className="header-controls">
@@ -372,6 +382,18 @@ function App() {
             >
               Chip Calculator
             </button>
+            <button
+              className={`menu-item ${page === 'gto' ? 'active' : ''}`}
+              onClick={() => selectPage('gto')}
+            >
+              GTO Range
+            </button>
+            <button
+              className={`menu-item ${page === 'blackjack' ? 'active' : ''}`}
+              onClick={() => selectPage('blackjack')}
+            >
+              Blackjack
+            </button>
           </nav>
         </div>
       )}
@@ -405,8 +427,12 @@ function App() {
             </button>
           </footer>
         </>
-      ) : (
+      ) : page === 'chip' ? (
         <ChipCalculator />
+      ) : page === 'gto' ? (
+        <GtoRange />
+      ) : (
+        <Blackjack />
       )}
     </div>
   )
