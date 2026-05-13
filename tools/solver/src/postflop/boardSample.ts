@@ -101,9 +101,12 @@ export function sampleBoards(n: number, seed = 42): SampledBoard[] {
   const allocations = new Map<string, number>();
   let allocated = 0;
   const keys = Array.from(buckets.keys()).sort();
+  // When n is small (e.g., n=1), skip the per-bucket minimum-1 floor so we honor n.
+  const useFloor = n >= keys.length;
   for (const k of keys) {
     const bucket = buckets.get(k)!;
-    const share = Math.max(1, Math.round(n * bucket.length / totalUnique));
+    const raw = n * bucket.length / totalUnique;
+    const share = useFloor ? Math.max(1, Math.round(raw)) : Math.round(raw);
     allocations.set(k, Math.min(share, bucket.length));
     allocated += allocations.get(k)!;
   }

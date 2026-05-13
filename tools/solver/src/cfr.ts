@@ -33,12 +33,19 @@ function regretMatchingPlus(regrets: Float64Array, offset: number, numActions: n
   }
 }
 
+export interface PostflopEvTable {
+  // spotPath -> per-hand SB/BB EV averaged across boards. When present, terminal_postflop
+  // payoffs are taken from here instead of all-in-equity approximation.
+  spots: Map<string, { sbEv: Float64Array; bbEv: Float64Array }>;
+}
+
 interface SolveContext {
   config: GameConfig;
   joint: Float64Array;
   infosets: Map<string, Infoset>;
   tree: TreeNode;
   iteration: number;
+  postflopEvTable?: PostflopEvTable;
 }
 
 function traverse(
@@ -71,6 +78,44 @@ function traverse(
       bbUtil[b] = s;
     }
     return { sbUtil, bbUtil };
+  }
+
+  if (node.kind === 'terminal_postflop' && ctx.postflopEvTable) {
+    // Look up per-hand SB/BB EV averaged across sampled boards.
+    const entry = ctx.postflopEvTable.spots.get(node.path);
+    if (entry) {
+      const sbUtil = new Float64Array(NUM_HANDS);
+      const bbUtil = new Float64Array(NUM_HANDS);
+      // The EV table already accounts for the postflop subgame's invested amounts and rake.
+      // It's an absolute per-hand EV value at the start of the flop, given the spot's reach.
+      // For preflop CFR we need: per-hand value at this terminal weighted by opponent reach.
+      // Approximation: treat ev[hand] as the cf-utility given uniform opponent reach.
+      // To respect the current opponent reach, we scale by (bbReach[b] * jc) / (expected_reach[b] * jc)
+      // — but we don't have the expected_reach normalization here. As a first-cut approximation:
+      // sum_b bbReach[b] * jc * (ev[hand] / sum_b expected_reach[b] * jc) — collapses to ev[hand] when reach matches.
+      // Practical simplification: use ev[hand] * sum_b (bbReach[b] * jc) as the SB utility.
+      // This preserves regret ordering for the SB while staying consistent with other terminals.
+      for (let h = 0; h < NUM_HANDS; h++) {
+        let weight = 0;
+        for (let b = 0; b < NUM_HANDS; b++) {
+          const jc = ctx.joint[h * NUM_HANDS + b];
+          if (jc === 0) continue;
+          weight += bbReach[b] * jc;
+        }
+        sbUtil[h] = entry.sbEv[h] * weight;
+      }
+      for (let b = 0; b < NUM_HANDS; b++) {
+        let weight = 0;
+        for (let h = 0; h < NUM_HANDS; h++) {
+          const jc = ctx.joint[h * NUM_HANDS + b];
+          if (jc === 0) continue;
+          weight += sbReach[h] * jc;
+        }
+        bbUtil[b] = entry.bbEv[b] * weight;
+      }
+      return { sbUtil, bbUtil };
+    }
+    // fall through to equity approximation
   }
 
   if (node.kind === 'terminal_showdown' || node.kind === 'terminal_postflop') {
@@ -359,7 +404,11 @@ function getAverageStrategy(infoset: Infoset): Float64Array {
   return out;
 }
 
-export function solve(config: GameConfig, iterations: number, opts?: { logEvery?: number }): SolveResult {
+export function solve(
+  config: GameConfig,
+  iterations: number,
+  opts?: { logEvery?: number; postflopEvTable?: PostflopEvTable },
+): SolveResult {
   const tree = buildTree(config);
   const ctx: SolveContext = {
     config,
@@ -367,6 +416,7 @@ export function solve(config: GameConfig, iterations: number, opts?: { logEvery?
     infosets: initInfosets(tree),
     tree,
     iteration: 1,
+    postflopEvTable: opts?.postflopEvTable,
   };
 
   const sbInit = new Float64Array(NUM_HANDS).fill(1);
