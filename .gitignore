@@ -25,3 +25,7 @@ dist-ssr
 
 # Claude temp files
 tmpclaude-*
+
+# solver per-scenario outputs (regeneratable; combined JSON lives in src/utils/)
+tools/solver/outputs/
+tools/solver/src/debug_*.ts

@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
 import { ChipCalculator } from './components/ChipCalculator'
+import { GtoRange } from './components/GtoRange'
 import { checkForUpdate } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip'
+type Page = 'flip' | 'chip' | 'gto'
 
 function App() {
   const {
@@ -24,7 +25,9 @@ function App() {
   // Page / menu state (persist across reload)
   const [page, setPage] = useState<Page>(() => {
     const saved = localStorage.getItem('flip-app-page')
-    return saved === 'chip' ? 'chip' : 'flip'
+    if (saved === 'chip') return 'chip'
+    if (saved === 'gto') return 'gto'
+    return 'flip'
   })
   const [menuOpen, setMenuOpen] = useState(false)
   const [updating, setUpdating] = useState(false)
@@ -319,7 +322,7 @@ function App() {
           <button className="hamburger-btn" onClick={() => setMenuOpen(o => !o)}>
             ☰
           </button>
-          <h1>{page === 'flip' ? 'Texas Holdem Flipout' : 'Chip Calculator'}</h1>
+          <h1>{page === 'flip' ? 'Texas Holdem Flipout' : page === 'chip' ? 'Chip Calculator' : 'GTO Range'}</h1>
         </div>
         {page === 'flip' && (
           <div className="header-controls">
@@ -372,6 +375,12 @@ function App() {
             >
               Chip Calculator
             </button>
+            <button
+              className={`menu-item ${page === 'gto' ? 'active' : ''}`}
+              onClick={() => selectPage('gto')}
+            >
+              GTO Range
+            </button>
           </nav>
         </div>
       )}
@@ -405,8 +414,10 @@ function App() {
             </button>
           </footer>
         </>
-      ) : (
+      ) : page === 'chip' ? (
         <ChipCalculator />
+      ) : (
+        <GtoRange />
       )}
     </div>
   )
