@@ -34,9 +34,9 @@ function regretMatchingPlus(regrets: Float64Array, offset: number, numActions: n
 }
 
 export interface PostflopEvTable {
-  // spotPath -> per-hand SB/BB EV averaged across boards. When present, terminal_postflop
-  // payoffs are taken from here instead of all-in-equity approximation.
-  spots: Map<string, { sbEv: Float64Array; bbEv: Float64Array }>;
+  // spotPath -> per-pair EV (size NUM_HANDS×NUM_HANDS). When present, terminal_postflop
+  // payoffs use these per-pair values; otherwise we fall back to all-in equity.
+  spots: Map<string, { sbPair: Float64Array; bbPair: Float64Array }>;
 }
 
 interface SolveContext {
@@ -81,37 +81,28 @@ function traverse(
   }
 
   if (node.kind === 'terminal_postflop' && ctx.postflopEvTable) {
-    // Look up per-hand SB/BB EV averaged across sampled boards.
     const entry = ctx.postflopEvTable.spots.get(node.path);
     if (entry) {
+      // Standard vector-CFR cf-utility: sbUtil[h] = sum_b opp_reach[b] * jc[h,b] * pair_payoff(h,b)
       const sbUtil = new Float64Array(NUM_HANDS);
       const bbUtil = new Float64Array(NUM_HANDS);
-      // The EV table already accounts for the postflop subgame's invested amounts and rake.
-      // It's an absolute per-hand EV value at the start of the flop, given the spot's reach.
-      // For preflop CFR we need: per-hand value at this terminal weighted by opponent reach.
-      // Approximation: treat ev[hand] as the cf-utility given uniform opponent reach.
-      // To respect the current opponent reach, we scale by (bbReach[b] * jc) / (expected_reach[b] * jc)
-      // — but we don't have the expected_reach normalization here. As a first-cut approximation:
-      // sum_b bbReach[b] * jc * (ev[hand] / sum_b expected_reach[b] * jc) — collapses to ev[hand] when reach matches.
-      // Practical simplification: use ev[hand] * sum_b (bbReach[b] * jc) as the SB utility.
-      // This preserves regret ordering for the SB while staying consistent with other terminals.
       for (let h = 0; h < NUM_HANDS; h++) {
-        let weight = 0;
+        let acc = 0;
         for (let b = 0; b < NUM_HANDS; b++) {
           const jc = ctx.joint[h * NUM_HANDS + b];
           if (jc === 0) continue;
-          weight += bbReach[b] * jc;
+          acc += bbReach[b] * jc * entry.sbPair[h * NUM_HANDS + b];
         }
-        sbUtil[h] = entry.sbEv[h] * weight;
+        sbUtil[h] = acc;
       }
       for (let b = 0; b < NUM_HANDS; b++) {
-        let weight = 0;
+        let acc = 0;
         for (let h = 0; h < NUM_HANDS; h++) {
           const jc = ctx.joint[h * NUM_HANDS + b];
           if (jc === 0) continue;
-          weight += sbReach[h] * jc;
+          acc += sbReach[h] * jc * entry.bbPair[h * NUM_HANDS + b];
         }
-        bbUtil[b] = entry.bbEv[b] * weight;
+        bbUtil[b] = acc;
       }
       return { sbUtil, bbUtil };
     }

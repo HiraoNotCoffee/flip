@@ -63,7 +63,7 @@ async function solveOneRake(cap: number): Promise<ReturnType<typeof formatResult
       spots: new Map(
         Array.from(ev.perSpot.entries()).map(([path, agg]) => [
           path,
-          { sbEv: agg.sbEv, bbEv: agg.bbEv },
+          { sbPair: agg.sbPair, bbPair: agg.bbPair },
         ]),
       ),
     };

@@ -13,7 +13,7 @@ import type {
   TerminalPostflopNode,
   TreeNode,
 } from './types.js';
-import { solvePostflopWithEquity, type PostflopConfig } from './postflop/pcfr.js';
+import { solvePostflopWithEquity, computePerPairEv, type PostflopConfig } from './postflop/pcfr.js';
 import { sampleBoards, type SampledBoard } from './postflop/boardSample.js';
 import { buildBoardEquity } from './postflop/boardEquity.js';
 import { buildBoardEquityParallel, precomputeTurnEquities } from './postflop/boardEquityParallel.js';
@@ -101,14 +101,36 @@ function* walkAll(node: TreeNode): Generator<TreeNode> {
 }
 
 export interface PostflopEvResult {
-  // For each spot, per-hand SB EV and BB EV averaged across all boards
-  perSpot: Map<string, { sbEv: Float64Array; bbEv: Float64Array; boardCount: number }>;
+  // For each spot:
+  //   sbEv[h], bbEv[b]: per-hand EV averaged across all boards (per-combo basis, v2-A reach conditional)
+  //   sbPair[h*NUM_HANDS+b], bbPair[h*NUM_HANDS+b]: per-pair EV averaged across boards (board-aware compatible pairs only)
+  //   pairCount[h*NUM_HANDS+b]: count of boards where this pair was valid (board-aware combos > 0)
+  perSpot: Map<
+    string,
+    {
+      sbEv: Float64Array;
+      bbEv: Float64Array;
+      sbPair: Float64Array;
+      bbPair: Float64Array;
+      pairCount: Float64Array;
+      boardCount: number;
+    }
+  >;
   boards: SampledBoard[];
 }
 
 // For a single board, solve postflop CFR for each spot and return per-hand SB/BB EVs.
 // `usePhaseB=true` uses turn-aware CFR; otherwise Phase A (flop-only).
 // IMPORTANT: board equity is built ONCE per board and reused across all spots.
+interface SpotBoardResult {
+  path: string;
+  sbEv: Float64Array;
+  bbEv: Float64Array;
+  sbPair: Float64Array;
+  bbPair: Float64Array;
+  jcMatrix: Float64Array;
+}
+
 async function evalSpotsOnBoard(
   board: number[],
   spots: PostflopSpot[],
@@ -116,22 +138,29 @@ async function evalSpotsOnBoard(
   iterations: number,
   usePhaseB: boolean,
   useParallel: boolean,
-): Promise<Array<{ path: string; sbEv: Float64Array; bbEv: Float64Array }>> {
+): Promise<SpotBoardResult[]> {
   // Build the flop equity matrix ONCE — shared across all spots on this board.
   const flopEquity = useParallel
     ? await buildBoardEquityParallel(board, { workers: 8 })
     : buildBoardEquity(board);
 
   // For Phase B, also precompute the 49 turn equities once.
-  let turnEquityCache: ReturnType<typeof buildBoardEquity>[] | null = null;
+  let turnEquityCache: Array<ReturnType<typeof buildBoardEquity> | null> | null = null;
   if (usePhaseB) {
     if (useParallel) {
-      const all = await precomputeTurnEquities(board, { concurrency: 16 });
-      turnEquityCache = all.map(e => e ?? buildBoardEquity(board)); // dummy fallback for board cards (won't be used)
+      turnEquityCache = await precomputeTurnEquities(board, { concurrency: 16 });
+    } else {
+      turnEquityCache = new Array(52).fill(null);
+      const flopSet = new Uint8Array(52);
+      for (const c of board) flopSet[c] = 1;
+      for (let c = 0; c < 52; c++) {
+        if (flopSet[c]) continue;
+        turnEquityCache[c] = buildBoardEquity([...board, c]);
+      }
     }
   }
 
-  const out: Array<{ path: string; sbEv: Float64Array; bbEv: Float64Array }> = [];
+  const out: SpotBoardResult[] = [];
   for (const spot of spots) {
     const startPot = spot.potBb;
     const effStack = config.stackBb - Math.max(spot.investedSb, spot.investedBb);
@@ -148,12 +177,21 @@ async function evalSpotsOnBoard(
       ipReach: spot.sbReach,
     };
 
-    const result = solvePostflopWithEquity(postflopConfig, flopEquity, iterations);
+    const result = solvePostflopWithEquity(postflopConfig, flopEquity, iterations, {
+      phaseB: usePhaseB,
+      flopBoard: usePhaseB ? board : undefined,
+      turnEquityCache: turnEquityCache ?? undefined,
+    });
 
-    // Normalize: rootEvIp[h] = sum_b (bbReach[b] * jc[h,b] * payoff). Divide by the
-    // same weight to get "expected SB payoff per (sb_combo, valid bb_combo)" — a
-    // per-combo expected value that doesn't depend on the absolute reach scale.
-    const joint = flopEquity.totalCombos; // board-aware (excludes board-conflicting combos)
+    // Per-pair EV (board-aware): walk the tree once more with strategies fixed.
+    const pair = computePerPairEv(postflopConfig, flopEquity, result.strategies, {
+      phaseB: usePhaseB,
+      flopBoard: usePhaseB ? board : undefined,
+      turnEquityCache: turnEquityCache ?? undefined,
+    });
+
+    // Per-hand normalized EV (for compatibility / inspection)
+    const joint = flopEquity.totalCombos;
     const sbEv = new Float64Array(NUM_HANDS);
     const bbEv = new Float64Array(NUM_HANDS);
     for (let h = 0; h < NUM_HANDS; h++) {
@@ -175,7 +213,7 @@ async function evalSpotsOnBoard(
       if (weight > 0) bbEv[b] = result.rootEvOop[b] / weight;
     }
 
-    out.push({ path: spot.path, sbEv, bbEv });
+    out.push({ path: spot.path, sbEv, bbEv, sbPair: pair.sbPair, bbPair: pair.bbPair, jcMatrix: joint });
   }
   void turnEquityCache;
   void buildJointCombosMatrix;
@@ -197,11 +235,14 @@ export async function buildPostflopEvTable(
   const spots = collectPostflopSpots(config, scenarioStrategies);
   const boards = sampleBoards(options.numBoards, options.seed ?? 42);
 
-  const perSpot = new Map<string, { sbEv: Float64Array; bbEv: Float64Array; boardCount: number }>();
+  const perSpot: PostflopEvResult['perSpot'] = new Map();
   for (const s of spots) {
     perSpot.set(s.path, {
       sbEv: new Float64Array(NUM_HANDS),
       bbEv: new Float64Array(NUM_HANDS),
+      sbPair: new Float64Array(NUM_HANDS * NUM_HANDS),
+      bbPair: new Float64Array(NUM_HANDS * NUM_HANDS),
+      pairCount: new Float64Array(NUM_HANDS * NUM_HANDS),
       boardCount: 0,
     });
   }
@@ -216,18 +257,36 @@ export async function buildPostflopEvTable(
         agg.sbEv[h] += r.sbEv[h];
         agg.bbEv[h] += r.bbEv[h];
       }
+      for (let i = 0; i < NUM_HANDS * NUM_HANDS; i++) {
+        if (r.jcMatrix[i] === 0) continue;
+        agg.sbPair[i] += r.sbPair[i];
+        agg.bbPair[i] += r.bbPair[i];
+        agg.pairCount[i] += 1;
+      }
       agg.boardCount++;
     }
     options.onBoardDone?.(bi + 1, boards.length);
   }
 
-  // Normalize by board count
+  // Normalize per-hand by boardCount, per-pair by pairCount (board-aware)
   for (const agg of perSpot.values()) {
-    if (agg.boardCount === 0) continue;
-    const inv = 1 / agg.boardCount;
-    for (let h = 0; h < NUM_HANDS; h++) {
-      agg.sbEv[h] *= inv;
-      agg.bbEv[h] *= inv;
+    if (agg.boardCount > 0) {
+      const inv = 1 / agg.boardCount;
+      for (let h = 0; h < NUM_HANDS; h++) {
+        agg.sbEv[h] *= inv;
+        agg.bbEv[h] *= inv;
+        if (!Number.isFinite(agg.sbEv[h])) agg.sbEv[h] = 0;
+        if (!Number.isFinite(agg.bbEv[h])) agg.bbEv[h] = 0;
+      }
+    }
+    for (let i = 0; i < NUM_HANDS * NUM_HANDS; i++) {
+      if (agg.pairCount[i] > 0) {
+        agg.sbPair[i] /= agg.pairCount[i];
+        agg.bbPair[i] /= agg.pairCount[i];
+      }
+      // Clamp NaN/Infinity to 0 so preflop CFR isn't polluted.
+      if (!Number.isFinite(agg.sbPair[i])) agg.sbPair[i] = 0;
+      if (!Number.isFinite(agg.bbPair[i])) agg.bbPair[i] = 0;
     }
   }
 
