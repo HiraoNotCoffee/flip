@@ -208,28 +208,31 @@ export function Blackjack() {
 
         <details className="bj-prob-details">
           <summary>確率テーブル</summary>
-          <table className="bj-prob-table">
-            <thead>
-              <tr>
-                <th></th>
-                {RANK_LABELS.map(r => <th key={r}>{r}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th>生確率</th>
-                {probs.map((p, i) => <td key={i}>{(p * 100).toFixed(2)}%</td>)}
-              </tr>
-              <tr>
-                <th>10抜き</th>
-                {probsNo10.map((p, i) => <td key={i}>{i === 9 ? '—' : (p * 100).toFixed(2) + '%'}</td>)}
-              </tr>
-              <tr>
-                <th>A抜き</th>
-                {probsNoA.map((p, i) => <td key={i}>{i === 0 ? '—' : (p * 100).toFixed(2) + '%'}</td>)}
-              </tr>
-            </tbody>
-          </table>
+          <div className="bj-prob-wrap">
+            <table className="bj-prob-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  {RANK_LABELS.map(r => <th key={r}>{r}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th>生確率</th>
+                  {probs.map((p, i) => <td key={i}>{(p * 100).toFixed(1)}</td>)}
+                </tr>
+                <tr>
+                  <th>10抜き</th>
+                  {probsNo10.map((p, i) => <td key={i}>{i === 9 ? '—' : (p * 100).toFixed(1)}</td>)}
+                </tr>
+                <tr>
+                  <th>A抜き</th>
+                  {probsNoA.map((p, i) => <td key={i}>{i === 0 ? '—' : (p * 100).toFixed(1)}</td>)}
+                </tr>
+              </tbody>
+            </table>
+            <div className="bj-prob-unit">単位: %</div>
+          </div>
         </details>
       </section>
 
