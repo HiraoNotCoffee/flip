@@ -32,7 +32,8 @@ const NUM_PASSES = Number(process.env.NUM_PASSES ?? '2');
 
 async function solveOneRake(cap: number): Promise<ReturnType<typeof formatResult>> {
   const scenarioName = `HU_100bb_v2b${USE_PHASE_B ? '_phaseB' : ''}_rake10pct_cap${cap}bb`;
-  console.log(`\n========== ${scenarioName} ==========`);
+  const now = new Date().toLocaleString('ja-JP', { hour12: false });
+  console.log(`\n========== ${scenarioName} (start: ${now}) ==========`);
   const config = { ...DEFAULT_V2A_CONFIG, rakeCapBb: cap };
 
   // PASS 1: initial preflop CFR
@@ -53,7 +54,12 @@ async function solveOneRake(cap: number): Promise<ReturnType<typeof formatResult
       seed: cap,
       onBoardDone: (i, n) => {
         const el = ((Date.now() - start) / 1000).toFixed(1);
-        console.log(`  board ${i}/${n} elapsed ${el}s`);
+        const now = new Date().toLocaleString('ja-JP', { hour12: false });
+        const remainingBoards = n - i;
+        const eta = i > 0
+          ? new Date(Date.now() + (Date.now() - start) / i * remainingBoards).toLocaleString('ja-JP', { hour12: false })
+          : '-';
+        console.log(`  board ${i}/${n} elapsed ${el}s  now=${now} eta=${eta}`);
       },
     });
     const evElapsed = ((Date.now() - start) / 1000).toFixed(1);

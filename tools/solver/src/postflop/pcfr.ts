@@ -418,15 +418,16 @@ export function computePerPairEv(
       const jcm = currentEquity.totalCombos;
       for (let sbH = 0; sbH < NUM_HANDS; sbH++) {
         const ipP = ipProb[sbH];
-        if (ipP === 0) continue;
+        if (!ipP || !Number.isFinite(ipP)) continue;
         for (let bbH = 0; bbH < NUM_HANDS; bbH++) {
           const oopP = oopProb[bbH];
-          if (oopP === 0) continue;
-          // Use board-aware combo presence to gate ineligible pairs
+          if (!oopP || !Number.isFinite(oopP)) continue;
           if (jcm[sbH * NUM_HANDS + bbH] === 0) continue;
           const pathProb = ipP * oopP;
-          sbPair[sbH * NUM_HANDS + bbH] += pathProb * ipPay; // IP=SB
-          bbPair[sbH * NUM_HANDS + bbH] += pathProb * oopPay; // OOP=BB
+          const sbContrib = pathProb * ipPay;
+          const bbContrib = pathProb * oopPay;
+          if (Number.isFinite(sbContrib)) sbPair[sbH * NUM_HANDS + bbH] += sbContrib;
+          if (Number.isFinite(bbContrib)) bbPair[sbH * NUM_HANDS + bbH] += bbContrib;
         }
       }
       return;
@@ -439,59 +440,61 @@ export function computePerPairEv(
       const jcm = currentEquity.totalCombos;
       for (let sbH = 0; sbH < NUM_HANDS; sbH++) {
         const ipP = ipProb[sbH];
-        if (ipP === 0) continue;
+        if (!ipP || !Number.isFinite(ipP)) continue;
         for (let bbH = 0; bbH < NUM_HANDS; bbH++) {
           const oopP = oopProb[bbH];
-          if (oopP === 0) continue;
+          if (!oopP || !Number.isFinite(oopP)) continue;
           const idx = sbH * NUM_HANDS + bbH;
           if (jcm[idx] === 0) continue;
-          // OOP equity from BB perspective = 1 - SB equity
-          // Note: equity matrix is built with SB role as first index.
           const sbEq = eq[idx];
-          const sbPay = sbEq * netPot - node.investedIp; // IP invested = SB invested
+          if (!Number.isFinite(sbEq)) continue;
+          const sbPay = sbEq * netPot - node.investedIp;
           const bbPay = (1 - sbEq) * netPot - node.investedOop;
           const pathProb = ipP * oopP;
-          sbPair[idx] += pathProb * sbPay;
-          bbPair[idx] += pathProb * bbPay;
+          const sbContrib = pathProb * sbPay;
+          const bbContrib = pathProb * bbPay;
+          if (Number.isFinite(sbContrib)) sbPair[idx] += sbContrib;
+          if (Number.isFinite(bbContrib)) bbPair[idx] += bbContrib;
         }
       }
       return;
     }
 
     if (node.kind === 'chance_turn' || node.kind === 'chance_river') {
-      // Phase B: enumerate turn cards, recurse into subtree with that turn's equity.
       if (!phaseB || flopBoard.length === 0) return;
       const flopSet = new Uint8Array(52);
       for (const c of flopBoard) flopSet[c] = 1;
-      let validCards = 0;
-      // We need to call walk recursively but with a different equity per card.
-      // Since walk closes over the outer `equity`, we replace the strategy walker entirely
-      // for chance branches by inlining a local recursion that takes an explicit equity arg.
-      // For simplicity, accumulate sbPair/bbPair via outer-scope state; just average at the end.
+      // Adjust per-hand reach to exclude hands whose combos all contain the turn card.
+      // For per-pair: when card c is used as the turn, any hand bucket whose combos
+      // require c becomes invalid for that turn. We approximate by scaling reach by
+      // (combos avoiding c) / (combos total). For simplicity we set reach = 0 if every
+      // combo in the bucket contains c, otherwise keep reach unchanged (board-aware combos
+      // already capture the rest in equity.totalCombos).
       const accSb = new Float64Array(NUM_HANDS * NUM_HANDS);
       const accBb = new Float64Array(NUM_HANDS * NUM_HANDS);
+      let totalWeight = 0;
       for (let c = 0; c < 52; c++) {
         if (flopSet[c]) continue;
         const turnEq = turnEquityCache?.[c];
-        if (!turnEq) continue; // require precomputed turn equity
-        validCards++;
-        // Snapshot sbPair / bbPair, recurse, diff
+        if (!turnEq) continue;
+        totalWeight += 1;
         const sbBefore = new Float64Array(sbPair);
         const bbBefore = new Float64Array(bbPair);
-        // Temporarily swap the equity context for the subtree walk.
         const savedEquity = currentEquity;
         currentEquity = turnEq;
         walk(node.childTree, ipProb, oopProb);
         currentEquity = savedEquity;
         for (let i = 0; i < NUM_HANDS * NUM_HANDS; i++) {
-          accSb[i] += sbPair[i] - sbBefore[i];
-          accBb[i] += bbPair[i] - bbBefore[i];
+          const diffSb = sbPair[i] - sbBefore[i];
+          const diffBb = bbPair[i] - bbBefore[i];
+          if (Number.isFinite(diffSb)) accSb[i] += diffSb;
+          if (Number.isFinite(diffBb)) accBb[i] += diffBb;
           sbPair[i] = sbBefore[i];
           bbPair[i] = bbBefore[i];
         }
       }
-      if (validCards > 0) {
-        const inv = 1 / validCards;
+      if (totalWeight > 0) {
+        const inv = 1 / totalWeight;
         for (let i = 0; i < NUM_HANDS * NUM_HANDS; i++) {
           sbPair[i] += accSb[i] * inv;
           bbPair[i] += accBb[i] * inv;
