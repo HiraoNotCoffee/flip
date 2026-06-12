@@ -1,7 +1,14 @@
 .hh {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 12px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  width: 100%;
   max-width: 560px;
   margin: 0 auto;
+  box-sizing: border-box;
   color: #e6e6f0;
   font-size: 15px;
   -webkit-text-size-adjust: 100%;
@@ -35,6 +42,34 @@
   min-width: 64px;
   color: #b8b8d8;
   font-size: 13px;
+}
+
+/* stack label above control (used for position picker) */
+.hh-row-col { flex-direction: column; align-items: stretch; gap: 8px; }
+.hh-row-col label { min-width: 0; }
+.hh-br { display: none; }
+
+/* position picker chips */
+.hh-pos-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.hh-pos-btn {
+  background: #15152a;
+  border: 1px solid #3a3a5c;
+  color: #c8c8e8;
+  border-radius: 8px;
+  padding: 12px 4px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.hh-pos-btn.active {
+  background: #2e8b57;
+  border-color: #2e8b57;
+  color: #fff;
 }
 
 .hh select,
