@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Card, Suit, Rank } from '../utils/card'
-import { SUITS, RANKS, suitSymbol, suitColor, rankToString, isSameCard } from '../utils/card'
+import { SUITS, RANKS, suitSymbol, rankToString, isSameCard } from '../utils/card'
+
+// 4-color deck (HH Export only — keeps the global red/black deck untouched elsewhere).
+// spade=black, heart=red, diamond=blue, club=green.
+const FOUR_COLOR: Record<Suit, string> = {
+  spade: '#1a1a1a',
+  heart: '#e53935',
+  diamond: '#1e6fe0',
+  club: '#1f9d4d',
+}
+
+const DEFAULT_PLAYERS = 9
 import {
   type Hand,
   type Street,
@@ -38,13 +49,13 @@ function loadHand(): Hand {
   } catch {
     // ignore
   }
-  return createHand(6)
+  return createHand(DEFAULT_PLAYERS)
 }
 
 // JSON round-trips fine for the plain Hand shape (cards are plain objects).
 function reviveHand(obj: unknown): Hand {
   const h = obj as Hand
-  if (!h.actions) h.actions = createHand(h.numPlayers ?? 6).actions
+  if (!h.actions) h.actions = createHand(h.numPlayers ?? DEFAULT_PLAYERS).actions
   if (!h.board) h.board = [null, null, null, null, null]
   return h
 }
@@ -187,11 +198,19 @@ export function HandBuilder() {
           />
           <span className="hh-unit">（全員・{(hand.defaultStack / hand.bb).toFixed(0)}BB）</span>
         </div>
-        <div className="hh-row">
-          <label>ヒーロー</label>
-          <select value={hand.heroPos} onChange={e => update({ heroPos: e.target.value })}>
-            {positions.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+        <div className="hh-row hh-row-col">
+          <label>ヒーローの<br className="hh-br" />ポジション</label>
+          <div className="hh-pos-grid">
+            {positions.map(p => (
+              <button
+                key={p}
+                className={`hh-pos-btn ${hand.heroPos === p ? 'active' : ''}`}
+                onClick={() => update({ heroPos: p })}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -433,7 +452,7 @@ function CardSlot({ card, onClick, small }: { card: Card | null; onClick: () => 
   return (
     <button className={`hh-slot ${small ? 'small' : ''} ${card ? 'filled' : ''}`} onClick={onClick}>
       {card ? (
-        <span style={{ color: suitColor[card.suit] }}>
+        <span style={{ color: FOUR_COLOR[card.suit] }}>
           {rankToString(card.rank)}{suitSymbol[card.suit]}
         </span>
       ) : (
@@ -464,7 +483,7 @@ function CardPicker({
             <button
               key={s}
               className={`hh-suit-tab ${suit === s ? 'active' : ''}`}
-              style={{ color: suitColor[s] }}
+              style={{ color: FOUR_COLOR[s] }}
               onClick={() => setSuit(s)}
             >
               {suitSymbol[s]}
@@ -478,7 +497,7 @@ function CardPicker({
               <button
                 key={r}
                 className="hh-rank-btn"
-                style={{ color: suitColor[suit] }}
+                style={{ color: FOUR_COLOR[suit] }}
                 disabled={disabled}
                 onClick={() => onPick({ rank: r, suit })}
               >
