@@ -33,12 +33,19 @@ function regretMatchingPlus(regrets: Float64Array, offset: number, numActions: n
   }
 }
 
+export interface PostflopEvTable {
+  // spotPath -> per-pair EV (size NUM_HANDS×NUM_HANDS). When present, terminal_postflop
+  // payoffs use these per-pair values; otherwise we fall back to all-in equity.
+  spots: Map<string, { sbPair: Float64Array; bbPair: Float64Array }>;
+}
+
 interface SolveContext {
   config: GameConfig;
   joint: Float64Array;
   infosets: Map<string, Infoset>;
   tree: TreeNode;
   iteration: number;
+  postflopEvTable?: PostflopEvTable;
 }
 
 function traverse(
@@ -71,6 +78,35 @@ function traverse(
       bbUtil[b] = s;
     }
     return { sbUtil, bbUtil };
+  }
+
+  if (node.kind === 'terminal_postflop' && ctx.postflopEvTable) {
+    const entry = ctx.postflopEvTable.spots.get(node.path);
+    if (entry) {
+      // Standard vector-CFR cf-utility: sbUtil[h] = sum_b opp_reach[b] * jc[h,b] * pair_payoff(h,b)
+      const sbUtil = new Float64Array(NUM_HANDS);
+      const bbUtil = new Float64Array(NUM_HANDS);
+      for (let h = 0; h < NUM_HANDS; h++) {
+        let acc = 0;
+        for (let b = 0; b < NUM_HANDS; b++) {
+          const jc = ctx.joint[h * NUM_HANDS + b];
+          if (jc === 0) continue;
+          acc += bbReach[b] * jc * entry.sbPair[h * NUM_HANDS + b];
+        }
+        sbUtil[h] = acc;
+      }
+      for (let b = 0; b < NUM_HANDS; b++) {
+        let acc = 0;
+        for (let h = 0; h < NUM_HANDS; h++) {
+          const jc = ctx.joint[h * NUM_HANDS + b];
+          if (jc === 0) continue;
+          acc += sbReach[h] * jc * entry.bbPair[h * NUM_HANDS + b];
+        }
+        bbUtil[b] = acc;
+      }
+      return { sbUtil, bbUtil };
+    }
+    // fall through to equity approximation
   }
 
   if (node.kind === 'terminal_showdown' || node.kind === 'terminal_postflop') {
@@ -359,7 +395,11 @@ function getAverageStrategy(infoset: Infoset): Float64Array {
   return out;
 }
 
-export function solve(config: GameConfig, iterations: number, opts?: { logEvery?: number }): SolveResult {
+export function solve(
+  config: GameConfig,
+  iterations: number,
+  opts?: { logEvery?: number; postflopEvTable?: PostflopEvTable },
+): SolveResult {
   const tree = buildTree(config);
   const ctx: SolveContext = {
     config,
@@ -367,6 +407,7 @@ export function solve(config: GameConfig, iterations: number, opts?: { logEvery?
     infosets: initInfosets(tree),
     tree,
     iteration: 1,
+    postflopEvTable: opts?.postflopEvTable,
   };
 
   const sbInit = new Float64Array(NUM_HANDS).fill(1);

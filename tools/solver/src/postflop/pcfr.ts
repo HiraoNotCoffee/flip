@@ -1,6 +1,7 @@
 import { NUM_HANDS } from '../hand.js';
 import { buildPostflopTree, walkPostflopTree, type PfDecision, type PfNode } from './ptree.js';
 import { buildBoardEquity, type BoardEquity } from './boardEquity.js';
+import { buildBoardEquityParallel, precomputeTurnEquities } from './boardEquityParallel.js';
 import { enumCombos } from '../hand.js';
 
 export interface PostflopConfig {
@@ -26,6 +27,13 @@ export interface PostflopSolveResult {
   strategies: Map<string, { actions: string[]; player: 'OOP' | 'IP'; strategy: Float64Array }>;
   rootEvOop: Float64Array;
   rootEvIp: Float64Array;
+}
+
+export interface PairEvResult {
+  // sbPair[h * NUM_HANDS + b] = E[SB payoff | SB=h, BB=b], over the strategies and runouts.
+  // bbPair[h * NUM_HANDS + b] = E[BB payoff | SB=h, BB=b]
+  sbPair: Float64Array;
+  bbPair: Float64Array;
 }
 
 interface SolveCtx {
@@ -229,6 +237,7 @@ function traverse(
   if (node.kind === 'chance_turn' || node.kind === 'chance_river') {
     return traverseChance(ctx, node, oopReach, ipReach);
   }
+  if (node.kind !== 'decision') throw new Error(`unexpected node kind: ${(node as PfNode).kind}`);
   return traverseDecision(ctx, node, oopReach, ipReach, equity);
 }
 
@@ -353,6 +362,174 @@ function avgStrategy(info: PfInfoset): Float64Array {
   return out;
 }
 
+export interface PerPairOptions {
+  phaseB?: boolean;
+  flopBoard?: number[];
+  turnEquityCache?: Array<BoardEquity | null>;
+}
+
+// Given fully trained strategies, traverse the tree once more with no own-reach (probability 1)
+// to accumulate per-pair (SB_hand, BB_hand) expected payoffs.
+//   pair_ev[h*NUM_HANDS + b] = sum over terminals z of P(reach z | h, b strategy) * payoff(z, h, b)
+// where P(reach z | h, b) is the product of strategy probabilities along the path,
+// which we track as ipProbHere[b] for IP and oopProbHere[h] for OOP.
+export function computePerPairEv(
+  config: PostflopConfig,
+  equity: BoardEquity,
+  strategies: Map<string, { actions: string[]; player: 'OOP' | 'IP'; strategy: Float64Array }>,
+  options?: PerPairOptions,
+): PairEvResult {
+  const phaseB = options?.phaseB ?? false;
+  const flopBoard = options?.flopBoard ?? [];
+  const turnEquityCache = options?.turnEquityCache;
+  const tree = buildPostflopTree({
+    startPotBb: config.startPotBb,
+    effectiveStackBb: config.effectiveStackBb,
+    flopBetPctOfPot: config.flopBetPctOfPot,
+    turnBetPctOfPot: config.turnBetPctOfPot,
+    maxRaiseCount: config.maxRaiseCount,
+    street: 'flop',
+    buildNextStreet: phaseB,
+  });
+
+  const sbPair = new Float64Array(NUM_HANDS * NUM_HANDS);
+  const bbPair = new Float64Array(NUM_HANDS * NUM_HANDS);
+  let currentEquity: BoardEquity = equity;
+
+  function walk(
+    node: PfNode,
+    ipProb: Float64Array,
+    oopProb: Float64Array,
+  ): void {
+    if (node.kind === 'terminal_fold') {
+      const r = rake(node.potBb, config.rakePct, config.rakeCapBb);
+      let oopPay: number;
+      let ipPay: number;
+      if (node.folder === 'OOP') {
+        oopPay = -node.investedOop;
+        ipPay = (node.potBb - r) - node.investedIp;
+      } else {
+        ipPay = -node.investedIp;
+        oopPay = (node.potBb - r) - node.investedOop;
+      }
+      // In HU postflop: SB = IP, BB = OOP. sbPair indexed by (SB=ip, BB=oop) means
+      //   sbPair[sb_hand * NUM_HANDS + bb_hand] where sb_hand = IP hand, bb_hand = OOP hand
+      // We follow the convention: first index = SB(IP), second index = BB(OOP).
+      const jcm = currentEquity.totalCombos;
+      for (let sbH = 0; sbH < NUM_HANDS; sbH++) {
+        const ipP = ipProb[sbH];
+        if (!ipP || !Number.isFinite(ipP)) continue;
+        for (let bbH = 0; bbH < NUM_HANDS; bbH++) {
+          const oopP = oopProb[bbH];
+          if (!oopP || !Number.isFinite(oopP)) continue;
+          if (jcm[sbH * NUM_HANDS + bbH] === 0) continue;
+          const pathProb = ipP * oopP;
+          const sbContrib = pathProb * ipPay;
+          const bbContrib = pathProb * oopPay;
+          if (Number.isFinite(sbContrib)) sbPair[sbH * NUM_HANDS + bbH] += sbContrib;
+          if (Number.isFinite(bbContrib)) bbPair[sbH * NUM_HANDS + bbH] += bbContrib;
+        }
+      }
+      return;
+    }
+
+    if (node.kind === 'terminal_runout' || node.kind === 'terminal_showdown') {
+      const r = rake(node.potBb, config.rakePct, config.rakeCapBb);
+      const netPot = node.potBb - r;
+      const eq = currentEquity.meanEquity;
+      const jcm = currentEquity.totalCombos;
+      for (let sbH = 0; sbH < NUM_HANDS; sbH++) {
+        const ipP = ipProb[sbH];
+        if (!ipP || !Number.isFinite(ipP)) continue;
+        for (let bbH = 0; bbH < NUM_HANDS; bbH++) {
+          const oopP = oopProb[bbH];
+          if (!oopP || !Number.isFinite(oopP)) continue;
+          const idx = sbH * NUM_HANDS + bbH;
+          if (jcm[idx] === 0) continue;
+          const sbEq = eq[idx];
+          if (!Number.isFinite(sbEq)) continue;
+          const sbPay = sbEq * netPot - node.investedIp;
+          const bbPay = (1 - sbEq) * netPot - node.investedOop;
+          const pathProb = ipP * oopP;
+          const sbContrib = pathProb * sbPay;
+          const bbContrib = pathProb * bbPay;
+          if (Number.isFinite(sbContrib)) sbPair[idx] += sbContrib;
+          if (Number.isFinite(bbContrib)) bbPair[idx] += bbContrib;
+        }
+      }
+      return;
+    }
+
+    if (node.kind === 'chance_turn' || node.kind === 'chance_river') {
+      if (!phaseB || flopBoard.length === 0) return;
+      const flopSet = new Uint8Array(52);
+      for (const c of flopBoard) flopSet[c] = 1;
+      // Adjust per-hand reach to exclude hands whose combos all contain the turn card.
+      // For per-pair: when card c is used as the turn, any hand bucket whose combos
+      // require c becomes invalid for that turn. We approximate by scaling reach by
+      // (combos avoiding c) / (combos total). For simplicity we set reach = 0 if every
+      // combo in the bucket contains c, otherwise keep reach unchanged (board-aware combos
+      // already capture the rest in equity.totalCombos).
+      const accSb = new Float64Array(NUM_HANDS * NUM_HANDS);
+      const accBb = new Float64Array(NUM_HANDS * NUM_HANDS);
+      let totalWeight = 0;
+      for (let c = 0; c < 52; c++) {
+        if (flopSet[c]) continue;
+        const turnEq = turnEquityCache?.[c];
+        if (!turnEq) continue;
+        totalWeight += 1;
+        const sbBefore = new Float64Array(sbPair);
+        const bbBefore = new Float64Array(bbPair);
+        const savedEquity = currentEquity;
+        currentEquity = turnEq;
+        walk(node.childTree, ipProb, oopProb);
+        currentEquity = savedEquity;
+        for (let i = 0; i < NUM_HANDS * NUM_HANDS; i++) {
+          const diffSb = sbPair[i] - sbBefore[i];
+          const diffBb = bbPair[i] - bbBefore[i];
+          if (Number.isFinite(diffSb)) accSb[i] += diffSb;
+          if (Number.isFinite(diffBb)) accBb[i] += diffBb;
+          sbPair[i] = sbBefore[i];
+          bbPair[i] = bbBefore[i];
+        }
+      }
+      if (totalWeight > 0) {
+        const inv = 1 / totalWeight;
+        for (let i = 0; i < NUM_HANDS * NUM_HANDS; i++) {
+          sbPair[i] += accSb[i] * inv;
+          bbPair[i] += accBb[i] * inv;
+        }
+      }
+      return;
+    }
+
+    // Decision
+    if (node.kind !== 'decision') return;
+    const stratInfo = strategies.get(node.path);
+    if (!stratInfo) return;
+    const numActions = node.actions.length;
+    const isOop = node.player === 'OOP';
+    for (let a = 0; a < numActions; a++) {
+      let nextIp = ipProb;
+      let nextOop = oopProb;
+      if (isOop) {
+        nextOop = new Float64Array(NUM_HANDS);
+        for (let h = 0; h < NUM_HANDS; h++) nextOop[h] = oopProb[h] * stratInfo.strategy[h * numActions + a];
+      } else {
+        nextIp = new Float64Array(NUM_HANDS);
+        for (let h = 0; h < NUM_HANDS; h++) nextIp[h] = ipProb[h] * stratInfo.strategy[h * numActions + a];
+      }
+      walk(node.children[a], nextIp, nextOop);
+    }
+  }
+
+  const initIp = new Float64Array(NUM_HANDS).fill(1);
+  const initOop = new Float64Array(NUM_HANDS).fill(1);
+  walk(tree, initIp, initOop);
+
+  return { sbPair, bbPair };
+}
+
 function buildBucketHasCard(): Uint8Array {
   const arr = new Uint8Array(52 * NUM_HANDS);
   for (let h = 0; h < NUM_HANDS; h++) {
@@ -367,28 +544,41 @@ function buildBucketHasCard(): Uint8Array {
 export interface SolvePostflopOptions {
   logEvery?: number;
   buildTurnEquityEager?: boolean; // if true, precompute all 49 turn equities up front
+  useParallel?: boolean; // use parallel buildBoardEquity (8 workers per board)
+  flopWorkers?: number;  // default 8
+  turnConcurrency?: number; // default 16 (board-level parallelism for turn equity)
+}
+
+export interface SolvePostflopWithEquityOptions extends SolvePostflopOptions {
+  // Phase B mode: build tree with chance_turn nodes and use turnEquityCache.
+  phaseB?: boolean;
+  flopBoard?: number[]; // required when phaseB=true (for chance node traversal)
+  turnEquityCache?: Array<BoardEquity | null>; // 52 entries; indexed by card. null = not built / invalid
 }
 
 export function solvePostflopWithEquity(
   config: PostflopConfig,
   equity: BoardEquity,
   iterations: number,
-  options?: SolvePostflopOptions,
+  options?: SolvePostflopWithEquityOptions,
 ): PostflopSolveResult {
+  const phaseB = options?.phaseB ?? false;
   const tree = buildPostflopTree({
     startPotBb: config.startPotBb,
     effectiveStackBb: config.effectiveStackBb,
     flopBetPctOfPot: config.flopBetPctOfPot,
     turnBetPctOfPot: config.turnBetPctOfPot,
     maxRaiseCount: config.maxRaiseCount,
+    street: 'flop',
+    buildNextStreet: phaseB,
   });
   const ctx: SolveCtx = {
     config,
     tree,
     infosets: initInfosets(tree),
-    flopBoard: [],
+    flopBoard: phaseB ? (options?.flopBoard ?? []) : [],
     flopEquity: equity,
-    turnEquityCache: new Array(52).fill(null),
+    turnEquityCache: options?.turnEquityCache ?? new Array(52).fill(null),
     bucketHasCard: buildBucketHasCard(),
     iteration: 1,
   };
@@ -401,6 +591,103 @@ export function solvePostflopWithEquity(
     if (options?.logEvery && (t % options.logEvery === 0 || t === iterations)) {
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
       console.log(`  [postflop iter ${t}/${iterations}] elapsed ${elapsed}s`);
+    }
+  }
+
+  const strategies = new Map<string, { actions: string[]; player: 'OOP' | 'IP'; strategy: Float64Array }>();
+  walkPostflopTree(tree, n => {
+    if (n.kind === 'decision') {
+      const info = ctx.infosets.get(n.path)!;
+      strategies.set(n.path, {
+        actions: n.actions.map(a => a.id),
+        player: n.player,
+        strategy: avgStrategy(info),
+      });
+    }
+  });
+
+  return {
+    iterations,
+    strategies,
+    rootEvOop: lastUtils.oop,
+    rootEvIp: lastUtils.ip,
+  };
+}
+
+export async function solvePostflopAsync(
+  config: PostflopConfig,
+  boardCards: number[],
+  iterations: number,
+  options?: SolvePostflopOptions & { phaseB?: boolean },
+): Promise<PostflopSolveResult> {
+  const useParallel = options?.useParallel ?? false;
+  const flopEquity = useParallel
+    ? await buildBoardEquityParallel(boardCards, { workers: options?.flopWorkers ?? 8 })
+    : buildBoardEquity(boardCards);
+  const phaseB = options?.phaseB ?? false;
+
+  if (!phaseB) {
+    return solvePostflopWithEquity(config, flopEquity, iterations, options);
+  }
+
+  const tree = buildPostflopTree({
+    startPotBb: config.startPotBb,
+    effectiveStackBb: config.effectiveStackBb,
+    flopBetPctOfPot: config.flopBetPctOfPot,
+    turnBetPctOfPot: config.turnBetPctOfPot,
+    maxRaiseCount: config.maxRaiseCount,
+    street: 'flop',
+    buildNextStreet: true,
+  });
+  const ctx: SolveCtx = {
+    config,
+    tree,
+    infosets: initInfosets(tree),
+    flopBoard: boardCards,
+    flopEquity,
+    turnEquityCache: new Array(52).fill(null),
+    bucketHasCard: buildBucketHasCard(),
+    iteration: 1,
+  };
+
+  if (options?.buildTurnEquityEager) {
+    if (useParallel) {
+      const t0 = Date.now();
+      const turnEqs = await precomputeTurnEquities(boardCards, {
+        concurrency: options.turnConcurrency ?? 16,
+        onProgress: (done, total) => {
+          if (done % 10 === 0 || done === total) {
+            const el = ((Date.now() - t0) / 1000).toFixed(1);
+            console.log(`  [turn equity ${done}/${total} parallel] elapsed ${el}s`);
+          }
+        },
+      });
+      for (let c = 0; c < 52; c++) ctx.turnEquityCache[c] = turnEqs[c];
+    } else {
+      const flopSet = new Uint8Array(52);
+      for (const c of boardCards) flopSet[c] = 1;
+      const t0 = Date.now();
+      let built = 0;
+      for (let c = 0; c < 52; c++) {
+        if (flopSet[c]) continue;
+        getTurnEquity(ctx, c);
+        built++;
+        if (built % 10 === 0) {
+          const el = ((Date.now() - t0) / 1000).toFixed(1);
+          console.log(`  [turn equity ${built}/49] elapsed ${el}s`);
+        }
+      }
+    }
+  }
+
+  const start = Date.now();
+  let lastUtils: Utils = { oop: new Float64Array(NUM_HANDS), ip: new Float64Array(NUM_HANDS) };
+  for (let t = 1; t <= iterations; t++) {
+    ctx.iteration = t;
+    lastUtils = traverse(ctx, tree, config.oopReach, config.ipReach, flopEquity);
+    if (options?.logEvery && (t % options.logEvery === 0 || t === iterations)) {
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+      console.log(`  [phaseB iter ${t}/${iterations}] elapsed ${elapsed}s`);
     }
   }
 

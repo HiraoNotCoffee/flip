@@ -4,10 +4,11 @@ import { CardView } from './components/CardView'
 import { ChipCalculator } from './components/ChipCalculator'
 import { GtoRange } from './components/GtoRange'
 import { Blackjack } from './components/Blackjack'
+import { HandBuilder } from './components/HandBuilder'
 import { checkForUpdate } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip' | 'gto' | 'blackjack'
+type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh'
 
 function App() {
   const {
@@ -29,6 +30,7 @@ function App() {
     if (saved === 'chip') return 'chip'
     if (saved === 'gto') return 'gto'
     if (saved === 'blackjack') return 'blackjack'
+    if (saved === 'hh') return 'hh'
     return 'flip'
   })
   const [menuOpen, setMenuOpen] = useState(false)
@@ -328,6 +330,7 @@ function App() {
             page === 'flip' ? 'Texas Holdem Flipout' :
             page === 'chip' ? 'Chip Calculator' :
             page === 'gto' ? 'GTO Range' :
+            page === 'hh' ? 'HH Export' :
             'Blackjack Count'
           }</h1>
         </div>
@@ -394,6 +397,12 @@ function App() {
             >
               Blackjack
             </button>
+            <button
+              className={`menu-item ${page === 'hh' ? 'active' : ''}`}
+              onClick={() => selectPage('hh')}
+            >
+              HH Export
+            </button>
           </nav>
         </div>
       )}
@@ -431,6 +440,8 @@ function App() {
         <ChipCalculator />
       ) : page === 'gto' ? (
         <GtoRange />
+      ) : page === 'hh' ? (
+        <HandBuilder />
       ) : (
         <Blackjack />
       )}
