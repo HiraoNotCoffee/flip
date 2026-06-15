@@ -5,7 +5,7 @@ import { ChipCalculator } from './components/ChipCalculator'
 import { GtoRange } from './components/GtoRange'
 import { Blackjack } from './components/Blackjack'
 import { HandBuilder } from './components/HandBuilder'
-import { checkForUpdate } from './swUpdate'
+import { checkForUpdate, superReload } from './swUpdate'
 import './App.css'
 
 type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh'
@@ -314,6 +314,12 @@ function App() {
     setMenuOpen(false)
   }
 
+  const handleSuperReload = () => {
+    setMenuOpen(false)
+    setUpdating(true)
+    void superReload()
+  }
+
   return (
     <div className={`app ${specialMode && page === 'flip' ? 'special-mode' : ''}`}>
       {updating && (
@@ -402,6 +408,12 @@ function App() {
               onClick={() => selectPage('hh')}
             >
               HH Export
+            </button>
+            <button
+              className="menu-item menu-reload"
+              onClick={handleSuperReload}
+            >
+              🔄 スーパーリロード
             </button>
           </nav>
         </div>

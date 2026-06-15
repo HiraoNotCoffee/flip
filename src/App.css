@@ -109,6 +109,15 @@
   font-weight: 600;
 }
 
+/* super reload pinned to the bottom of the menu */
+.menu-reload {
+  margin-top: auto;
+  border-top: 1px solid #2e2e4d;
+  color: #9fb8d8;
+  font-size: 0.95rem;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
 .player-select {
   display: flex;
   align-items: center;
