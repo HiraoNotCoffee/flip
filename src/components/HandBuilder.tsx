@@ -223,6 +223,10 @@ export function HandBuilder() {
         </div>
       </section>
 
+      <p className="hh-hint hh-hint-flow">
+        各ストリートはボードを入れるだけで次へ進めます（アクション入力は任意）。
+      </p>
+
       {/* ---- streets ---- */}
       {STREETS.map(street => (
         <StreetSection
@@ -290,15 +294,18 @@ function StreetSection({
   onUndo: (s: Street) => void
   onPickBoard: (boardIndex: number) => void
 }) {
-  // Is this street reachable? Preflop always; later streets need the previous
-  // street's action closed and >1 player remaining.
+  // Is this street reachable? Preflop always. Later streets only need that the
+  // hand didn't already end (>1 player) and the previous street's board cards
+  // are in. We deliberately do NOT require the previous street's betting to be
+  // "closed" — entering a full action line is optional; the user may just want
+  // to deal the board, and the exporter emits each street from its board alone.
   const reachable = useMemo(() => {
     if (street === 'preflop') return true
     const order = STREETS.slice(0, STREETS.indexOf(street))
     const prev = order[order.length - 1]
     const prevState = stateForStreet(hand, prev)
-    if (prevState.handOver || !prevState.closed) return false
-    // Also require the previous street's board to be present.
+    if (prevState.handOver) return false
+    // Require the previous street's board to be present.
     if (prev !== 'preflop') {
       const [s, e] = BOARD_RANGE[prev as Exclude<Street, 'preflop'>]
       for (let i = s; i < e; i++) if (!hand.board[i]) return false

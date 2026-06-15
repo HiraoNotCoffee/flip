@@ -181,6 +181,15 @@
 .hh-btn.small { padding: 6px 10px; font-size: 12px; margin-top: 8px; }
 
 .hh-hint { font-size: 11px; color: #8a8aa8; margin: 8px 0 0; line-height: 1.5; }
+.hh-hint-flow {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: rgba(46, 139, 87, 0.12);
+  border: 1px solid #2e6b4d;
+  border-radius: 8px;
+  color: #9fd8b8;
+  font-size: 12px;
+}
 
 /* card picker modal */
 .hh-modal {
