@@ -23,6 +23,7 @@ import {
   legalActions,
   formatPokerStars,
   computeTotalPot,
+  potThroughStreet,
 } from '../utils/handHistory'
 import './HandBuilder.css'
 
@@ -261,7 +262,9 @@ export function HandBuilder() {
         <CardPicker
           used={usedCards}
           current={getCardAt(hand, pickTarget)}
-          onPick={card => { setCardAt(pickTarget, card); setPickTarget(null) }}
+          // Auto-advance to the next slot in the group (hole cards, flop) so the
+          // user can fill several cards in a row without reopening the picker.
+          onPick={card => { setCardAt(pickTarget, card); setPickTarget(nextPickTarget(pickTarget)) }}
           onClear={() => { setCardAt(pickTarget, null); setPickTarget(null) }}
           onClose={() => setPickTarget(null)}
         />
@@ -281,6 +284,18 @@ function safeFormat(hand: Hand): string {
 function getCardAt(hand: Hand, target: string): Card | null {
   if (target.startsWith('hero')) return hand.heroCards[Number(target.slice(4))]
   return hand.board[Number(target.slice(5))]
+}
+
+// After picking a card, where does the picker move next? Stays open and walks
+// through a group (both hole cards, or the three flop cards); turn/river are
+// single slots so they close. Returns null to close.
+function nextPickTarget(target: string): string | null {
+  switch (target) {
+    case 'hero0': return 'hero1'
+    case 'board0': return 'board1'
+    case 'board1': return 'board2'
+    default: return null
+  }
 }
 
 // ---- street section ----
@@ -327,9 +342,14 @@ function StreetSection({
     return true
   })()
 
+  const pot = potThroughStreet(hand, street)
+
   return (
     <section className="hh-section">
-      <h2>{STREET_LABEL[street]}</h2>
+      <div className="hh-street-head">
+        <h2>{STREET_LABEL[street]}</h2>
+        <span className="hh-street-pot">ポット ${pot.toFixed(2)}</span>
+      </div>
 
       {needsBoard && (
         <div className="hh-board">

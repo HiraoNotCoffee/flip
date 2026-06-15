@@ -425,6 +425,26 @@ function formatActionLine(
   }
 }
 
+/**
+ * Running pot total from preflop through (and including) `street` — i.e. all
+ * chips committed up to the end of that street's action entered so far.
+ */
+export function potThroughStreet(hand: Hand, street: Street): number {
+  const positions = positionsForSize(hand.numPlayers)
+  const perPlayer: Record<string, number> = {}
+  for (const p of positions) perPlayer[p] = 0
+  let folded = new Set<string>()
+  let allIn = new Set<string>()
+  for (const s of STREETS) {
+    const st = streetState(hand, s, folded, allIn)
+    for (const p of positions) perPlayer[p] += st.committed[p] ?? 0
+    folded = st.folded
+    allIn = st.allIn
+    if (s === street) break
+  }
+  return Object.values(perPlayer).reduce((a, b) => a + b, 0)
+}
+
 /** Total pot = sum of every player's committed amount across all streets. */
 export function computeTotalPot(hand: Hand): number {
   const positions = positionsForSize(hand.numPlayers)

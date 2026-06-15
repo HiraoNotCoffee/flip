@@ -29,6 +29,22 @@
   font-weight: 600;
 }
 
+/* street header: title left, running pot right */
+.hh-street-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.hh-street-head h2 { margin: 0; }
+.hh-street-pot {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6cd39a;
+  white-space: nowrap;
+}
+
 .hh-row {
   display: flex;
   align-items: center;
