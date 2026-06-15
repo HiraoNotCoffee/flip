@@ -127,6 +127,18 @@
 .hh-slot:not(.filled) { background: #15152a; }
 .hh-slot-empty { color: #4a4a6a; font-size: 22px; }
 
+/* the slot currently being edited in the picker */
+.hh-slot.active {
+  border-color: #ffd34d;
+  box-shadow: 0 0 0 3px #ffd34d, 0 0 12px rgba(255, 211, 77, 0.6);
+  animation: hh-slot-pulse 1s ease-in-out infinite;
+}
+.hh-slot.active .hh-slot-empty { color: #b88a00; }
+@keyframes hh-slot-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px #ffd34d, 0 0 12px rgba(255, 211, 77, 0.6); }
+  50%      { box-shadow: 0 0 0 3px #ffd34d, 0 0 4px rgba(255, 211, 77, 0.3); }
+}
+
 /* action log */
 .hh-log {
   display: flex;

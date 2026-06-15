@@ -219,8 +219,8 @@ export function HandBuilder() {
       <section className="hh-section">
         <h2>ヒーローのハンド（{hand.heroPos}）</h2>
         <div className="hh-cards">
-          <CardSlot card={hand.heroCards[0]} onClick={() => setPickTarget('hero0')} />
-          <CardSlot card={hand.heroCards[1]} onClick={() => setPickTarget('hero1')} />
+          <CardSlot card={hand.heroCards[0]} active={pickTarget === 'hero0'} onClick={() => setPickTarget('hero0')} />
+          <CardSlot card={hand.heroCards[1]} active={pickTarget === 'hero1'} onClick={() => setPickTarget('hero1')} />
         </div>
       </section>
 
@@ -234,6 +234,7 @@ export function HandBuilder() {
           key={street}
           hand={hand}
           street={street}
+          pickTarget={pickTarget}
           onPush={pushAction}
           onUndo={undoAction}
           onPickBoard={i => setPickTarget(`board${i}`)}
@@ -301,10 +302,11 @@ function nextPickTarget(target: string): string | null {
 // ---- street section ----
 
 function StreetSection({
-  hand, street, onPush, onUndo, onPickBoard,
+  hand, street, pickTarget, onPush, onUndo, onPickBoard,
 }: {
   hand: Hand
   street: Street
+  pickTarget: string | null
   onPush: (s: Street, e: ActionEntry) => void
   onUndo: (s: Street) => void
   onPickBoard: (boardIndex: number) => void
@@ -354,7 +356,7 @@ function StreetSection({
       {needsBoard && (
         <div className="hh-board">
           {boardSlots(street).map(i => (
-            <CardSlot key={i} card={hand.board[i]} small onClick={() => onPickBoard(i)} />
+            <CardSlot key={i} card={hand.board[i]} small active={pickTarget === `board${i}`} onClick={() => onPickBoard(i)} />
           ))}
         </div>
       )}
@@ -475,9 +477,9 @@ function actionLabel(a: ActionEntry): string {
 
 // ---- card slot & picker ----
 
-function CardSlot({ card, onClick, small }: { card: Card | null; onClick: () => void; small?: boolean }) {
+function CardSlot({ card, onClick, small, active }: { card: Card | null; onClick: () => void; small?: boolean; active?: boolean }) {
   return (
-    <button className={`hh-slot ${small ? 'small' : ''} ${card ? 'filled' : ''}`} onClick={onClick}>
+    <button className={`hh-slot ${small ? 'small' : ''} ${card ? 'filled' : ''} ${active ? 'active' : ''}`} onClick={onClick}>
       {card ? (
         <span style={{ color: FOUR_COLOR[card.suit] }}>
           {rankToString(card.rank)}{suitSymbol[card.suit]}
