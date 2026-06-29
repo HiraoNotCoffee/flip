@@ -105,6 +105,34 @@ export function ChipCalculator() {
     return ((p.finalChips - received) / data.chipsPer100BB) * data.buyInYen
   }
 
+  // Optimal settlement: who pays whom, minimizing the number of transactions.
+  // Greedy "minimize cash flow": match the biggest debtor with the biggest creditor.
+  const settlements = (() => {
+    const debtors = data.players
+      .map(p => ({ name: p.name, amount: -Math.round(calcPnl(p)) }))
+      .filter(p => p.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+    const creditors = data.players
+      .map(p => ({ name: p.name, amount: Math.round(calcPnl(p)) }))
+      .filter(p => p.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+
+    const result: { from: string; to: string; amount: number }[] = []
+    let i = 0
+    let j = 0
+    while (i < debtors.length && j < creditors.length) {
+      const pay = Math.min(debtors[i].amount, creditors[j].amount)
+      if (pay > 0) {
+        result.push({ from: debtors[i].name, to: creditors[j].name, amount: pay })
+      }
+      debtors[i].amount -= pay
+      creditors[j].amount -= pay
+      if (debtors[i].amount <= 0) i++
+      if (creditors[j].amount <= 0) j++
+    }
+    return result
+  })()
+
   return (
     <div className="chip-calculator">
       {/* Settings */}
@@ -259,6 +287,27 @@ export function ChipCalculator() {
             {chipDiff === 0
               ? 'Chips match!'
               : `Chip difference: ${chipDiff > 0 ? '+' : ''}${chipDiff.toLocaleString()}`}
+          </div>
+
+          {/* Settlement: who pays whom */}
+          <div className="settlement-section">
+            <h3>Settlement</h3>
+            {settlements.length === 0 ? (
+              <div className="settlement-empty">No transfers needed</div>
+            ) : (
+              <ul className="settlement-list">
+                {settlements.map((s, idx) => (
+                  <li key={idx} className="settlement-item">
+                    <span className="settlement-from">{s.from}</span>
+                    <span className="settlement-arrow">→</span>
+                    <span className="settlement-to">{s.to}</span>
+                    <span className="settlement-amount">
+                      ¥{s.amount.toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
