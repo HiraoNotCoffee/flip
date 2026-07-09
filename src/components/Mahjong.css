@@ -1,0 +1,617 @@
+.mahjong-calculator {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  gap: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Shared section chrome */
+.mahjong-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.mahjong-section h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mahjong-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mahjong-count {
+  font-size: 0.85rem;
+  color: #ccc;
+  font-weight: 600;
+}
+
+.mahjong-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.condition-label {
+  font-size: 0.85rem;
+  color: #ccc;
+  white-space: nowrap;
+  min-width: 70px;
+}
+
+/* ---- Tiles (CSS-drawn, no emoji) ---- */
+.mj-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #f2f1e9;
+  color: #222;
+  font-weight: 700;
+  font-size: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.mj-tile.tile-man {
+  color: #c0392b;
+}
+
+.mj-tile.tile-pin {
+  color: #2980b9;
+}
+
+.mj-tile.tile-sou {
+  color: #27ae60;
+}
+
+.mj-tile.tile-honor {
+  color: #222;
+}
+
+.mj-tile.tile-green {
+  color: #27ae60;
+}
+
+.mj-tile.tile-crimson {
+  color: #c0392b;
+}
+
+.mj-tile.mj-tile-red {
+  color: #e74c3c;
+  box-shadow: inset 0 -2px 0 rgba(231, 76, 60, 0.5);
+  border-color: rgba(231, 76, 60, 0.6);
+}
+
+.mj-tile.mj-tile-clickable {
+  cursor: pointer;
+}
+
+.mj-tile.mj-tile-clickable:active {
+  transform: scale(0.94);
+}
+
+.mj-tile.mj-tile-disabled {
+  opacity: 0.25;
+  filter: grayscale(0.6);
+}
+
+.mj-tile.mj-tile-highlighted {
+  outline: 2px solid #f1c40f;
+  outline-offset: 1px;
+}
+
+/* ---- ① Hand area ---- */
+.hand-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mj-hand-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.mj-hand-slot-empty {
+  width: 38px;
+  height: 53px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.mj-win-marker {
+  width: 38px;
+  padding: 1px 0;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #888;
+  font-size: 0.65rem;
+  cursor: pointer;
+}
+
+.mj-win-marker.active {
+  background: rgba(241, 196, 15, 0.25);
+  border-color: #f1c40f;
+  color: #f1c40f;
+  font-weight: 700;
+}
+
+/* ---- ② Pad ---- */
+.red-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.pad-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pad-tabs button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ccc;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.pad-tabs button.active {
+  background: #3498db;
+  border-color: #3498db;
+  color: white;
+  font-weight: 600;
+}
+
+.pad-tabs button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pad-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pad-row {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+}
+
+.pad-row .mj-tile {
+  width: 100% !important;
+  min-width: 0;
+}
+
+.pad-row-honor {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+/* ---- ③ Melds ---- */
+.meld-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meld-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.meld-label {
+  font-size: 0.75rem;
+  color: #aaa;
+  min-width: 40px;
+}
+
+.meld-tiles {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.meld-remove {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(231, 76, 60, 0.6);
+  color: white;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.meld-pending {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(52, 152, 219, 0.12);
+  border: 1px solid rgba(52, 152, 219, 0.4);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.meld-cancel {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #ccc;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.meld-add-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.meld-add-row button {
+  flex: 1;
+  min-width: 70px;
+  padding: 8px 6px;
+  border-radius: 6px;
+  border: none;
+  background: #2d3a4f;
+  color: white;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.meld-add-row button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---- ④ Conditions ---- */
+.condition-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.segmented button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ccc;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.segmented button.active {
+  background: #3498db;
+  border-color: #3498db;
+  color: white;
+  font-weight: 600;
+}
+
+.segmented button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.condition-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #ccc;
+}
+
+.condition-checkbox input:disabled + * {
+  opacity: 0.4;
+}
+
+/* ---- ⑤ Dora ---- */
+.dora-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dora-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.dora-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.dora-arrow {
+  color: #888;
+  font-size: 0.8rem;
+}
+
+.pad-target-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  background: transparent;
+  color: #ccc;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.pad-target-btn.active {
+  border-style: solid;
+  border-color: #3498db;
+  color: #3498db;
+}
+
+.pad-target-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---- ⑥ Details ---- */
+.details-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stepper-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepper button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: #2d3a4f;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper span {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* ---- ⑦ Result ---- */
+.mahjong-result {
+  align-items: stretch;
+}
+
+.result-placeholder {
+  font-size: 0.85rem;
+  color: #888;
+  text-align: center;
+  padding: 10px 0;
+}
+
+.result-error {
+  font-size: 0.9rem;
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.12);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: center;
+}
+
+.result-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+}
+
+.result-limit {
+  font-size: 1rem;
+  color: #f1c40f;
+  font-weight: 700;
+}
+
+.result-points {
+  font-size: 2rem;
+  font-weight: 800;
+  color: white;
+}
+
+.result-hanfu {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
+.result-payment {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.yaku-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.yaku-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.yaku-name {
+  color: #eee;
+}
+
+.yaku-han {
+  color: #f1c40f;
+  font-weight: 700;
+}
+
+/* ---- ⑧ Reset ---- */
+.mahjong-reset-section {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 16px;
+}
+
+.mahjong-reset-btn {
+  padding: 10px 32px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mahjong-reset-btn:active {
+  opacity: 0.8;
+  transform: scale(0.98);
+}
+
+/* Confirm Reset Modal */
+.mahjong-calculator .confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mahjong-calculator .confirm-modal {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 260px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.mahjong-calculator .confirm-modal p {
+  margin: 0 0 20px;
+  font-size: 1rem;
+  color: #eee;
+}
+
+.mahjong-calculator .confirm-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.mahjong-calculator .confirm-cancel {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #ccc;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.mahjong-calculator .confirm-cancel:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mahjong-calculator .confirm-ok {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mahjong-calculator .confirm-ok:active {
+  opacity: 0.8;
+}
