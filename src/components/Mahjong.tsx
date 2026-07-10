@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   calculateScore,
   doraFromIndicator,
   tileDisplayName,
+  tileFromString,
   type HandInput,
   type ScoreResult,
   type Tile,
@@ -10,6 +11,7 @@ import {
   type TileKind,
   type LimitName,
 } from '../utils/mahjong'
+import { recognizeMahjongHand, type VisionHandResult } from '../utils/mahjongVision'
 import './Mahjong.css'
 
 // ---- Local UI-only types (domain types always come from ../utils/mahjong) ----
@@ -82,6 +84,46 @@ function loadData(): MahjongData {
 
 function saveData(data: MahjongData) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+}
+
+const API_KEY_STORAGE = 'anthropic-api-key'
+
+function loadApiKey(): string {
+  try {
+    return localStorage.getItem(API_KEY_STORAGE) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+// 画像を長辺 maxEdge に収まるよう縮小し、JPEGのbase64（data URL接頭辞なし）に変換する。
+async function fileToResizedBase64(
+  file: File,
+  maxEdge = 1800
+): Promise<{ data: string; mediaType: string }> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader()
+    fr.onload = () => resolve(fr.result as string)
+    fr.onerror = () => reject(new Error('画像の読み込みに失敗しました'))
+    fr.readAsDataURL(file)
+  })
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image()
+    im.onload = () => resolve(im)
+    im.onerror = () => reject(new Error('画像の読み込みに失敗しました'))
+    im.src = dataUrl
+  })
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
+  const width = Math.max(1, Math.round(img.width * scale))
+  const height = Math.max(1, Math.round(img.height * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('画像処理に失敗しました')
+  ctx.drawImage(img, 0, 0, width, height)
+  const jpeg = canvas.toDataURL('image/jpeg', 0.9)
+  return { data: jpeg.split(',')[1] ?? '', mediaType: 'image/jpeg' }
 }
 
 const WIND_LABELS = ['東', '南', '西', '北']
@@ -333,6 +375,24 @@ export function Mahjong() {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
 
+  // Camera / vision recognition (phase 2)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [apiKey, setApiKey] = useState<string>(loadApiKey)
+  const [showKey, setShowKey] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [recognizing, setRecognizing] = useState(false)
+  const [visionError, setVisionError] = useState<string | null>(null)
+  const [visionNotes, setVisionNotes] = useState<string | null>(null)
+
+  const saveApiKey = (k: string) => {
+    setApiKey(k)
+    try {
+      localStorage.setItem(API_KEY_STORAGE, k)
+    } catch {
+      // ignore
+    }
+  }
+
   // Auto-save
   useEffect(() => {
     saveData(data)
@@ -508,8 +568,76 @@ export function Mahjong() {
     setConfirmReset(false)
   }
 
+  const parseTiles = (arr: string[]): Tile[] => {
+    const out: Tile[] = []
+    for (const s of arr) {
+      try {
+        out.push(tileFromString(s.trim()))
+      } catch {
+        // 認識できない表記はスキップ
+      }
+    }
+    return out
+  }
+
+  const applyVisionResult = (r: VisionHandResult) => {
+    const melds: Meld[] = []
+    for (const m of r.melds ?? []) {
+      const tiles = parseTiles(m.tiles)
+      if (tiles.length > 0) melds.push({ type: m.type, tiles })
+    }
+    const maxSlots = 14 - 3 * melds.length
+    let hand = parseTiles(r.tiles ?? [])
+    if (hand.length > maxSlots) hand = hand.slice(0, maxSlots)
+
+    let winIdx: number | null = hand.length > 0 ? hand.length - 1 : null
+    if (r.winningTile) {
+      try {
+        const w = tileFromString(r.winningTile.trim())
+        const idx = hand.findIndex(t => t.kind === w.kind && !!t.red === !!w.red)
+        if (idx >= 0) winIdx = idx
+      } catch {
+        // ignore
+      }
+    }
+
+    setData(prev => ({ ...prev, handTiles: hand, melds, winningTileIndex: winIdx }))
+    setPendingMeld(null)
+    setPadTarget('hand')
+    setVisionNotes(r.notes ? r.notes : null)
+    if (hand.length === 0) setVisionError('牌を認識できませんでした。明るく正面から撮り直してください')
+  }
+
+  const handleCameraFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 同じ写真を選び直せるようにする
+    if (!file) return
+    if (!apiKey) {
+      setSettingsOpen(true)
+      setVisionError('先にAPIキーを設定してください')
+      return
+    }
+    setRecognizing(true)
+    setVisionError(null)
+    setVisionNotes(null)
+    try {
+      const { data, mediaType } = await fileToResizedBase64(file)
+      const result = await recognizeMahjongHand(data, mediaType, apiKey)
+      applyVisionResult(result)
+    } catch (err) {
+      setVisionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRecognizing(false)
+    }
+  }
+
   return (
     <div className="mahjong-calculator">
+      {recognizing && (
+        <div className="mj-vision-overlay">
+          <div className="mj-vision-msg">画像を認識中…</div>
+        </div>
+      )}
       {/* ① 手牌エリア */}
       <div className="mahjong-section">
         <div className="mahjong-section-header">
@@ -518,6 +646,62 @@ export function Mahjong() {
             {data.handTiles.length} / {maxHandSlots}
           </span>
         </div>
+
+        <div className="mj-camera-row">
+          <button
+            type="button"
+            className="mj-camera-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={recognizing}
+          >
+            {recognizing ? '認識中…' : '📷 写真から読み取り'}
+          </button>
+          <button
+            type="button"
+            className="mj-camera-settings"
+            onClick={() => setSettingsOpen(o => !o)}
+          >
+            ⚙ APIキー
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleCameraFile}
+            style={{ display: 'none' }}
+          />
+        </div>
+        {settingsOpen && (
+          <div className="mj-key-settings">
+            <label className="mj-key-label">Anthropic APIキー</label>
+            <div className="mj-key-input-row">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={e => saveApiKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="mj-key-input"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                className="mj-key-toggle"
+                onClick={() => setShowKey(s => !s)}
+              >
+                {showKey ? '隠す' : '表示'}
+              </button>
+            </div>
+            <p className="mahjong-hint">
+              キーはこの端末にのみ保存され、写真はClaudeへ直接送信されます（従量課金）。
+              取得は console.anthropic.com から。
+            </p>
+          </div>
+        )}
+        {visionError && <p className="mj-vision-error">{visionError}</p>}
+        {visionNotes && <p className="mahjong-hint">認識メモ: {visionNotes}</p>}
+
         <div className="hand-slots">
           {data.handTiles.map((t, i) => (
             <HandTileSlot

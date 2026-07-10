@@ -586,3 +586,117 @@
 .mahjong-calculator .confirm-ok:active {
   opacity: 0.8;
 }
+
+/* ---- Camera / vision recognition (phase 2) ---- */
+.mj-camera-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.mj-camera-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #2f8f5f, #257049);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mj-camera-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.mj-camera-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.mj-camera-settings {
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mj-key-settings {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.mj-key-label {
+  font-size: 0.8rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mj-key-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mj-key-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #eee;
+  font-size: 0.9rem;
+  font-family: monospace;
+}
+
+.mj-key-toggle {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mj-vision-error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(231, 76, 60, 0.15);
+  border: 1px solid rgba(231, 76, 60, 0.5);
+  color: #f0a9a0;
+  font-size: 0.85rem;
+}
+
+.mj-vision-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.mj-vision-msg {
+  padding: 18px 26px;
+  border-radius: 10px;
+  background: #1c1c1c;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
