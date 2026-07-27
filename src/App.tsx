@@ -6,10 +6,11 @@ import { GtoRange } from './components/GtoRange'
 import { Blackjack } from './components/Blackjack'
 import { HandBuilder } from './components/HandBuilder'
 import { Mahjong } from './components/Mahjong'
+import { MahjongLedger } from './components/MahjongLedger'
 import { checkForUpdate, superReload } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh' | 'mahjong'
+type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh' | 'mahjong' | 'mjledger'
 
 function App() {
   const {
@@ -33,6 +34,7 @@ function App() {
     if (saved === 'blackjack') return 'blackjack'
     if (saved === 'hh') return 'hh'
     if (saved === 'mahjong') return 'mahjong'
+    if (saved === 'mjledger') return 'mjledger'
     return 'flip'
   })
   const [menuOpen, setMenuOpen] = useState(false)
@@ -340,6 +342,7 @@ function App() {
             page === 'gto' ? 'GTO Range' :
             page === 'hh' ? 'HH Export' :
             page === 'mahjong' ? '麻雀点数計算' :
+            page === 'mjledger' ? '麻雀収支計算' :
             'Blackjack Count'
           }</h1>
         </div>
@@ -419,6 +422,12 @@ function App() {
               麻雀点数計算
             </button>
             <button
+              className={`menu-item ${page === 'mjledger' ? 'active' : ''}`}
+              onClick={() => selectPage('mjledger')}
+            >
+              麻雀収支計算
+            </button>
+            <button
               className="menu-item menu-reload"
               onClick={handleSuperReload}
             >
@@ -465,6 +474,8 @@ function App() {
         <HandBuilder />
       ) : page === 'mahjong' ? (
         <Mahjong />
+      ) : page === 'mjledger' ? (
+        <MahjongLedger />
       ) : (
         <Blackjack />
       )}
