@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   calcGame,
   calcSettlements,
-  calcVenue,
+  splitEvenly,
+  venueTotal,
   computeRanks,
   UMA_PRESETS_3,
   UMA_PRESETS_4,
@@ -32,13 +33,25 @@ const defaultData: LedgerData = {
     startPoints: 25000,
     returnPoints: 30000,
     uma4: [10, 5, -5, -10],
-    uma3: [20, 0, -20],
+    uma3: [10, 0, -10],
     rate: 50,
     tobiBonus: 0,
   },
   members: [],
   games: [],
-  venue: { mode: 'total', amount: 0, payerId: null },
+  venue: { fees: {}, payerId: null },
+}
+
+/** 旧形式（総額 or 1人あたり）の場所代をメンバーごとの金額に変換する */
+function migrateVenue(venue: unknown, members: Member[]): VenueFee {
+  const v = venue as Partial<VenueFee> & { mode?: string; amount?: number }
+  if (!v) return { fees: {}, payerId: null }
+  if (v.fees) return { fees: v.fees, payerId: v.payerId ?? null }
+  const perPerson =
+    v.mode === 'each' ? (v.amount ?? 0) : splitEvenly(v.amount ?? 0, members.length)
+  const fees: Record<string, number> = {}
+  if (perPerson > 0) members.forEach(m => (fees[m.id] = perPerson))
+  return { fees, payerId: v.payerId ?? null }
 }
 
 function loadData(): LedgerData {
@@ -46,17 +59,18 @@ function loadData(): LedgerData {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<LedgerData>
+      const members = parsed.members ?? []
       return {
         settings: { ...defaultData.settings, ...parsed.settings },
-        members: parsed.members ?? [],
+        members,
         games: parsed.games ?? [],
-        venue: { ...defaultData.venue, ...parsed.venue },
+        venue: migrateVenue(parsed.venue, members),
       }
     }
   } catch {
     // ignore
   }
-  return { ...defaultData, members: [], games: [] }
+  return { ...defaultData, members: [], games: [], venue: { fees: {}, payerId: null } }
 }
 
 let nextId = Date.now()
@@ -112,6 +126,7 @@ export function MahjongLedger() {
   const [data, setData] = useState<LedgerData>(loadData)
   const [showSettings, setShowSettings] = useState(false)
   const [openGameId, setOpenGameId] = useState<string | null>(null)
+  const [bulkFee, setBulkFee] = useState(0)
   const [confirmReset, setConfirmReset] = useState(false)
 
   useEffect(() => {
@@ -127,6 +142,23 @@ export function MahjongLedger() {
   const updateVenue = useCallback((partial: Partial<VenueFee>) => {
     setData(prev => ({ ...prev, venue: { ...prev.venue, ...partial } }))
   }, [])
+
+  const setVenueFee = useCallback((memberId: string, amount: number) => {
+    setData(prev => ({
+      ...prev,
+      venue: { ...prev.venue, fees: { ...prev.venue.fees, [memberId]: amount } },
+    }))
+  }, [])
+
+  /** 全員に同じ金額を入れる（split: 総額として等分する） */
+  const setVenueForAll = (amount: number, split: boolean) => {
+    setData(prev => {
+      const per = split ? splitEvenly(amount, prev.members.length) : amount
+      const fees: Record<string, number> = {}
+      prev.members.forEach(m => (fees[m.id] = per))
+      return { ...prev, venue: { ...prev.venue, fees } }
+    })
+  }
 
   /* ---------------- members ---------------- */
 
@@ -161,15 +193,21 @@ export function MahjongLedger() {
   }
 
   const removeMember = (id: string) => {
-    setData(prev => ({
-      ...prev,
-      members: prev.members.filter(m => m.id !== id),
-      games: prev.games.map(g => ({
-        ...g,
-        entries: g.entries.filter(e => e.memberId !== id),
-      })),
-      venue: prev.venue.payerId === id ? { ...prev.venue, payerId: null } : prev.venue,
-    }))
+    setData(prev => {
+      const fees = { ...prev.venue.fees }
+      delete fees[id]
+      return {
+        ...prev,
+        members: prev.members.filter(m => m.id !== id),
+        games: prev.games.map(g => ({
+          ...g,
+          entries: g.entries
+            .filter(e => e.memberId !== id)
+            .map(e => (e.tobiBy === id ? { ...e, tobiBy: null } : e)),
+        })),
+        venue: { fees, payerId: prev.venue.payerId === id ? null : prev.venue.payerId },
+      }
+    })
   }
 
   /* ---------------- games ---------------- */
@@ -232,6 +270,12 @@ export function MahjongLedger() {
     })
   }
 
+  const setTobiBy = (gameId: string, memberId: string, tobiBy: string | null) => {
+    updateGame(gameId, entries =>
+      entries.map(e => (e.memberId === memberId ? { ...e, tobiBy } : e))
+    )
+  }
+
   const togglePlaying = (gameId: string, memberId: string) => {
     updateGame(gameId, entries =>
       applyAutoRanks(
@@ -257,7 +301,7 @@ export function MahjongLedger() {
     [games, entriesOf, settings]
   )
 
-  const venueCalc = calcVenue(venue, members.length)
+  const venueSum = venueTotal(venue, members.map(m => m.id))
 
   const totals = useMemo(() => {
     const map = new Map<string, { games: number; score: number; yen: number; ranks: number[]; tobi: number }>()
@@ -276,33 +320,32 @@ export function MahjongLedger() {
     return members.map(m => {
       const t = map.get(m.id)!
       const avgRank = t.ranks.length ? t.ranks.reduce((s, r) => s + r, 0) / t.ranks.length : 0
+      const fee = venue.fees[m.id] || 0
       return {
         id: m.id,
         name: m.name,
         ...t,
         avgRank,
+        fee,
         // 場所代を引いた最終的な収支
-        finalYen: t.yen - venueCalc.perPerson,
+        finalYen: t.yen - fee,
       }
     })
-  }, [members, gameResults, venueCalc.perPerson])
+  }, [members, gameResults, venue.fees])
 
   const settlements = useMemo(() => {
     const balances = totals.map(t => ({
       name: t.name,
       // 立替者がいる場合は集めた分を戻す（＝みんなが立替者に払う）
-      yen:
-        venue.payerId === t.id
-          ? t.finalYen + venueCalc.collected
-          : venue.payerId
-            ? t.finalYen
-            : t.yen,
+      yen: venue.payerId
+        ? t.finalYen + (venue.payerId === t.id ? venueSum : 0)
+        : t.yen,
     }))
     return calcSettlements(balances)
-  }, [totals, venue.payerId, venueCalc.collected])
+  }, [totals, venue.payerId, venueSum])
 
   const handleReset = () => {
-    setData({ ...defaultData, members: [], games: [], venue: { ...defaultData.venue } })
+    setData({ ...defaultData, members: [], games: [], venue: { fees: {}, payerId: null } })
     setConfirmReset(false)
     setOpenGameId(null)
   }
@@ -555,6 +598,32 @@ export function MahjongLedger() {
                             )}
                           </div>
                         )}
+
+                        {tobi && (
+                          <div className="mjl-entry-bottom">
+                            <span className="mjl-tobi-label">飛ばした人</span>
+                            <select
+                              className="mjl-tobi-select"
+                              value={r?.tobiBy ?? ''}
+                              onChange={ev =>
+                                setTobiBy(g.id, e.memberId, ev.target.value || null)
+                              }
+                            >
+                              {entries
+                                .filter(o => o.playing && o.memberId !== e.memberId)
+                                .map(o => (
+                                  <option key={o.memberId} value={o.memberId}>
+                                    {memberName(o.memberId)}
+                                  </option>
+                                ))}
+                            </select>
+                            {settings.tobiBonus > 0 && (
+                              <span className="mjl-entry-score">
+                                トビ賞 {settings.tobiBonus}pt
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -577,23 +646,36 @@ export function MahjongLedger() {
           <div className="mjl-block-header">
             <h2>場所代</h2>
           </div>
-          <div className="mjl-setting-row">
-            <select
-              className="mjl-venue-mode"
-              value={venue.mode}
-              onChange={e => updateVenue({ mode: e.target.value as VenueFee['mode'] })}
-            >
-              <option value="total">総額</option>
-              <option value="each">1人あたり</option>
-            </select>
+          {members.map(m => (
+            <div key={m.id} className="mjl-venue-row">
+              <span className="mjl-venue-name">{m.name}</span>
+              <NumberField
+                className="mjl-venue-input"
+                value={venue.fees[m.id] || 0}
+                onChange={v => setVenueFee(m.id, v)}
+                placeholder="0"
+                emptyWhenZero
+              />
+              <span className="mjl-unit">円</span>
+            </div>
+          ))}
+
+          <div className="mjl-venue-bulk">
             <NumberField
-              value={venue.amount}
-              onChange={v => updateVenue({ amount: v })}
+              className="mjl-venue-input"
+              value={bulkFee}
+              onChange={setBulkFee}
               placeholder="0"
               emptyWhenZero
             />
-            <span className="mjl-unit">円</span>
+            <button className="mjl-bulk-btn" onClick={() => setVenueForAll(bulkFee, false)}>
+              全員に
+            </button>
+            <button className="mjl-bulk-btn" onClick={() => setVenueForAll(bulkFee, true)}>
+              総額を等分
+            </button>
           </div>
+
           <div className="mjl-setting-row">
             <label>立替えた人</label>
             <select
@@ -608,11 +690,12 @@ export function MahjongLedger() {
               ))}
             </select>
           </div>
-          {venueCalc.perPerson > 0 && (
+          {venueSum > 0 && (
             <p className="mjl-note">
-              1人あたり ¥{venueCalc.perPerson.toLocaleString()}（{members.length}人・合計 ¥
-              {venueCalc.collected.toLocaleString()}）
-              {venue.payerId && ` / ${memberName(venue.payerId)}さんが立替え → 精算に含みます`}
+              合計 ¥{venueSum.toLocaleString()}
+              {venue.payerId
+                ? ` / ${memberName(venue.payerId)}さんが立替え → 精算に含みます`
+                : ' / 各自で支払い（精算には含めません）'}
             </p>
           )}
         </div>
@@ -658,8 +741,10 @@ export function MahjongLedger() {
                 ))}
             </tbody>
           </table>
-          {venueCalc.perPerson > 0 && (
-            <p className="mjl-note">収支は場所代（1人 ¥{venueCalc.perPerson.toLocaleString()}）を引いた金額です。</p>
+          {venueSum > 0 && (
+            <p className="mjl-note">
+              収支は場所代（合計 ¥{venueSum.toLocaleString()}）を引いた金額です。
+            </p>
           )}
 
           <div className="mjl-settlement">

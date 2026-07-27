@@ -472,8 +472,85 @@
   color: #aaa;
 }
 
-.mjl-venue-mode {
-  flex: 0 0 96px;
+.mjl-tobi-label {
+  font-size: 0.72rem;
+  color: #e74c3c;
+  white-space: nowrap;
+}
+
+.mjl-tobi-select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.8rem;
+}
+
+.mjl-tobi-select:focus {
+  outline: none;
+  border-color: #e74c3c;
+}
+
+/* 場所代 */
+.mjl-venue-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mjl-venue-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: #ddd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mjl-venue-input {
+  width: 96px;
+  flex-shrink: 0;
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.9rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjl-venue-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.mjl-venue-bulk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mjl-bulk-btn {
+  flex: 1;
+  padding: 7px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ddd;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mjl-bulk-btn:active {
+  opacity: 0.7;
 }
 
 .mjl-warn {

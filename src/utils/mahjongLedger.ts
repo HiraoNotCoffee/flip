@@ -28,6 +28,8 @@ export interface GameEntry {
   /** 順位（1始まり）。参加者内で重複しない前提 */
   rank: number
   playing: boolean
+  /** 飛ばした人（この人を飛ばした相手）。未指定ならトップ扱い */
+  tobiBy?: string | null
 }
 
 export interface Game {
@@ -45,6 +47,8 @@ export interface EntryResult {
   yen: number
   /** 飛び（素点がマイナス） */
   tobi: boolean
+  /** 飛ばした人（トビ賞の受取人）。飛んでいなければ null */
+  tobiBy: string | null
 }
 
 export interface GameResult {
@@ -99,6 +103,7 @@ export function calcGame(game: Game, settings: LedgerSettings): GameResult {
         score: 0,
         yen: 0,
         tobi: e.points < 0,
+        tobiBy: null,
       })),
       count,
       totalPoints,
@@ -108,18 +113,31 @@ export function calcGame(game: Game, settings: LedgerSettings): GameResult {
 
   const uma = umaFor(settings, count)
   const sorted = [...playing].sort((a, b) => a.rank - b.rank)
+  const topId = sorted[0].memberId
+  const playingIds = new Set(playing.map(e => e.memberId))
 
-  // トップ以外を先に確定させ、トップがその合計を引き受ける（＝オカ・トビ賞）
+  // トップ以外を先に確定させ、トップがその合計を引き受ける（＝オカ）
   const scores = new Map<string, number>()
   let othersTotal = 0
   sorted.forEach((e, idx) => {
     if (idx === 0) return
-    const tobi = e.points < 0 ? settings.tobiBonus : 0
-    const score = roundGosha(e.points - settings.returnPoints) + (uma[idx] ?? 0) - tobi
+    const score = roundGosha(e.points - settings.returnPoints) + (uma[idx] ?? 0)
     scores.set(e.memberId, score)
     othersTotal += score
   })
-  scores.set(sorted[0].memberId, -othersTotal)
+  scores.set(topId, -othersTotal)
+
+  // トビ賞は飛んだ人から飛ばした人へ（未指定ならトップ）
+  const tobiBy = new Map<string, string | null>()
+  sorted.forEach(e => {
+    if (e.points >= 0) return
+    const to =
+      e.tobiBy && e.tobiBy !== e.memberId && playingIds.has(e.tobiBy) ? e.tobiBy : topId
+    tobiBy.set(e.memberId, to === e.memberId ? null : to)
+    if (to === e.memberId || settings.tobiBonus <= 0) return
+    scores.set(e.memberId, (scores.get(e.memberId) ?? 0) - settings.tobiBonus)
+    scores.set(to, (scores.get(to) ?? 0) + settings.tobiBonus)
+  })
 
   return {
     results: sorted.map(e => {
@@ -131,6 +149,7 @@ export function calcGame(game: Game, settings: LedgerSettings): GameResult {
         score,
         yen: score * settings.rate,
         tobi: e.points < 0,
+        tobiBy: tobiBy.get(e.memberId) ?? null,
       }
     }),
     count,
@@ -140,19 +159,21 @@ export function calcGame(game: Game, settings: LedgerSettings): GameResult {
 }
 
 export interface VenueFee {
-  /** total: 総額を人数で割る / each: 1人あたりの金額 */
-  mode: 'total' | 'each'
-  amount: number
+  /** メンバーIDごとの場所代（円） */
+  fees: Record<string, number>
   /** 立て替えた人。null なら各自で支払い（精算に含めない） */
   payerId: string | null
 }
 
-/** 場所代の1人あたり負担額と、集める合計額を返す（割り切れない分は切り上げ） */
-export function calcVenue(fee: VenueFee, memberCount: number) {
-  if (memberCount <= 0 || fee.amount <= 0) return { perPerson: 0, collected: 0 }
-  const perPerson =
-    fee.mode === 'each' ? Math.round(fee.amount) : Math.ceil(fee.amount / memberCount)
-  return { perPerson, collected: perPerson * memberCount }
+/** 場所代の合計（メンバーに残っている人だけ） */
+export function venueTotal(fee: VenueFee, memberIds: string[]): number {
+  return memberIds.reduce((sum, id) => sum + (fee.fees[id] || 0), 0)
+}
+
+/** 総額を人数で等分したときの1人あたり金額（端数は切り上げ） */
+export function splitEvenly(total: number, memberCount: number): number {
+  if (memberCount <= 0 || total <= 0) return 0
+  return Math.ceil(total / memberCount)
 }
 
 export interface Settlement {
@@ -189,16 +210,18 @@ export function calcSettlements(totals: { name: string; yen: number }[]): Settle
 }
 
 export const UMA_PRESETS_4: { key: string; label: string; uma: number[] }[] = [
-  { key: '5-10', label: 'ゴットー (5-10)', uma: [10, 5, -5, -10] },
-  { key: '10-20', label: 'ワンツー (10-20)', uma: [20, 10, -10, -20] },
-  { key: '10-30', label: 'ワンスリー (10-30)', uma: [30, 10, -10, -30] },
-  { key: '20-30', label: 'ツースリー (20-30)', uma: [30, 20, -20, -30] },
+  { key: '5-10', label: 'ゴットー +10 / +5 / -5 / -10', uma: [10, 5, -5, -10] },
+  { key: '10-20', label: 'ワンツー +20 / +10 / -10 / -20', uma: [20, 10, -10, -20] },
+  { key: '10-30', label: 'ワンスリー +30 / +10 / -10 / -30', uma: [30, 10, -10, -30] },
+  { key: '20-30', label: 'ツースリー +30 / +20 / -20 / -30', uma: [30, 20, -20, -30] },
   { key: 'none', label: 'ウマなし', uma: [0, 0, 0, 0] },
 ]
 
+// 三人麻雀は2位が±0で、1位と3位がやりとりするのが一般的
 export const UMA_PRESETS_3: { key: string; label: string; uma: number[] }[] = [
-  { key: '10-20', label: '10-20', uma: [20, 0, -20] },
-  { key: '5-10', label: '5-10', uma: [10, 0, -10] },
-  { key: '10-30', label: '10-30', uma: [30, 0, -30] },
+  { key: '10', label: '+10 / 0 / -10', uma: [10, 0, -10] },
+  { key: '20', label: '+20 / 0 / -20', uma: [20, 0, -20] },
+  { key: '30', label: '+30 / 0 / -30', uma: [30, 0, -30] },
+  { key: '5', label: '+5 / 0 / -5', uma: [5, 0, -5] },
   { key: 'none', label: 'ウマなし', uma: [0, 0, 0] },
 ]
