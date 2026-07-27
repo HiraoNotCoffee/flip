@@ -17,6 +17,8 @@ export interface LedgerSettings {
   uma3: number[]
   /** レート: 1000点あたりの円（点5なら50） */
   rate: number
+  /** トビ賞（1000点単位）。飛んだ人（素点マイナス）がトップに支払う。0でなし */
+  tobiBonus: number
 }
 
 export interface GameEntry {
@@ -37,10 +39,12 @@ export interface EntryResult {
   memberId: string
   rank: number
   points: number
-  /** 1000点単位のスコア（ウマ・オカ込み） */
+  /** 1000点単位のスコア（ウマ・オカ・トビ賞込み） */
   score: number
   /** 円 */
   yen: number
+  /** 飛び（素点がマイナス） */
+  tobi: boolean
 }
 
 export interface GameResult {
@@ -94,6 +98,7 @@ export function calcGame(game: Game, settings: LedgerSettings): GameResult {
         points: e.points,
         score: 0,
         yen: 0,
+        tobi: e.points < 0,
       })),
       count,
       totalPoints,
@@ -104,12 +109,13 @@ export function calcGame(game: Game, settings: LedgerSettings): GameResult {
   const uma = umaFor(settings, count)
   const sorted = [...playing].sort((a, b) => a.rank - b.rank)
 
-  // トップ以外を先に確定させ、トップがその合計を引き受ける（＝オカ）
+  // トップ以外を先に確定させ、トップがその合計を引き受ける（＝オカ・トビ賞）
   const scores = new Map<string, number>()
   let othersTotal = 0
   sorted.forEach((e, idx) => {
     if (idx === 0) return
-    const score = roundGosha(e.points - settings.returnPoints) + (uma[idx] ?? 0)
+    const tobi = e.points < 0 ? settings.tobiBonus : 0
+    const score = roundGosha(e.points - settings.returnPoints) + (uma[idx] ?? 0) - tobi
     scores.set(e.memberId, score)
     othersTotal += score
   })
@@ -124,12 +130,29 @@ export function calcGame(game: Game, settings: LedgerSettings): GameResult {
         points: e.points,
         score,
         yen: score * settings.rate,
+        tobi: e.points < 0,
       }
     }),
     count,
     totalPoints,
     pointsValid,
   }
+}
+
+export interface VenueFee {
+  /** total: 総額を人数で割る / each: 1人あたりの金額 */
+  mode: 'total' | 'each'
+  amount: number
+  /** 立て替えた人。null なら各自で支払い（精算に含めない） */
+  payerId: string | null
+}
+
+/** 場所代の1人あたり負担額と、集める合計額を返す（割り切れない分は切り上げ） */
+export function calcVenue(fee: VenueFee, memberCount: number) {
+  if (memberCount <= 0 || fee.amount <= 0) return { perPerson: 0, collected: 0 }
+  const perPerson =
+    fee.mode === 'each' ? Math.round(fee.amount) : Math.ceil(fee.amount / memberCount)
+  return { perPerson, collected: perPerson * memberCount }
 }
 
 export interface Settlement {

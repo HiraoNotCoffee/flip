@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   calcGame,
   calcSettlements,
+  calcVenue,
   computeRanks,
   UMA_PRESETS_3,
   UMA_PRESETS_4,
   type Game,
   type GameEntry,
   type LedgerSettings,
+  type VenueFee,
 } from '../utils/mahjongLedger'
 import './MahjongLedger.css'
 
@@ -20,6 +22,7 @@ interface LedgerData {
   settings: LedgerSettings
   members: Member[]
   games: Game[]
+  venue: VenueFee
 }
 
 const STORAGE_KEY = 'mahjong-ledger-data'
@@ -31,20 +34,23 @@ const defaultData: LedgerData = {
     uma4: [10, 5, -5, -10],
     uma3: [20, 0, -20],
     rate: 50,
+    tobiBonus: 0,
   },
   members: [],
   games: [],
+  venue: { mode: 'total', amount: 0, payerId: null },
 }
 
 function loadData(): LedgerData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
-      const parsed = JSON.parse(raw) as LedgerData
+      const parsed = JSON.parse(raw) as Partial<LedgerData>
       return {
         settings: { ...defaultData.settings, ...parsed.settings },
         members: parsed.members ?? [],
         games: parsed.games ?? [],
+        venue: { ...defaultData.venue, ...parsed.venue },
       }
     }
   } catch {
@@ -63,19 +69,63 @@ function umaKey(uma: number[], presets: { key: string; uma: number[] }[]) {
   return found?.key ?? 'custom'
 }
 
+/** 入力中は文字列を保持し、フォーカス時に全選択する数値入力（先頭に0が残らない） */
+function NumberField({
+  value,
+  onChange,
+  className,
+  placeholder,
+  emptyWhenZero = false,
+}: {
+  value: number
+  onChange: (v: number) => void
+  className?: string
+  placeholder?: string
+  emptyWhenZero?: boolean
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const display = draft ?? (emptyWhenZero && value === 0 ? '' : String(value))
+
+  return (
+    <input
+      className={className}
+      type="text"
+      inputMode="numeric"
+      value={display}
+      placeholder={placeholder}
+      onFocus={e => {
+        setDraft(display)
+        e.currentTarget.select()
+      }}
+      onChange={e => {
+        const raw = e.target.value.replace(/[^0-9-]/g, '')
+        setDraft(raw)
+        const n = Number(raw)
+        onChange(raw === '' || raw === '-' || Number.isNaN(n) ? 0 : n)
+      }}
+      onBlur={() => setDraft(null)}
+    />
+  )
+}
+
 export function MahjongLedger() {
   const [data, setData] = useState<LedgerData>(loadData)
   const [showSettings, setShowSettings] = useState(false)
+  const [openGameId, setOpenGameId] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   }, [data])
 
-  const { settings, members, games } = data
+  const { settings, members, games, venue } = data
 
   const updateSettings = useCallback((partial: Partial<LedgerSettings>) => {
     setData(prev => ({ ...prev, settings: { ...prev.settings, ...partial } }))
+  }, [])
+
+  const updateVenue = useCallback((partial: Partial<VenueFee>) => {
+    setData(prev => ({ ...prev, venue: { ...prev.venue, ...partial } }))
   }, [])
 
   /* ---------------- members ---------------- */
@@ -118,41 +168,37 @@ export function MahjongLedger() {
         ...g,
         entries: g.entries.filter(e => e.memberId !== id),
       })),
+      venue: prev.venue.payerId === id ? { ...prev.venue, payerId: null } : prev.venue,
     }))
   }
 
   /* ---------------- games ---------------- */
 
   const addGame = () => {
+    const id = genId()
     setData(prev => {
       const entries: GameEntry[] = prev.members.map((m, i) => ({
         memberId: m.id,
         points: prev.settings.startPoints,
         rank: i + 1,
-        // 5人以上いる場合は先頭4人（3人打ちなら人数分）を参加にする
-        playing: prev.members.length <= 4 ? true : i < 4,
+        // デフォルトは先頭4人（3人しかいなければ3人）
+        playing: i < 4,
       }))
-      return { ...prev, games: [...prev.games, { id: genId(), entries }] }
+      return { ...prev, games: [...prev.games, { id, entries }] }
     })
+    setOpenGameId(id)
   }
 
   const removeGame = (id: string) => {
     setData(prev => ({ ...prev, games: prev.games.filter(g => g.id !== id) }))
+    setOpenGameId(prev => (prev === id ? null : prev))
   }
 
-  /** 半荘のエントリーを更新し、必要なら順位を振り直す */
   const updateGame = (gameId: string, updater: (entries: GameEntry[]) => GameEntry[]) => {
     setData(prev => ({
       ...prev,
       games: prev.games.map(g => (g.id === gameId ? { ...g, entries: updater(g.entries) } : g)),
     }))
-  }
-
-  const setPoints = (gameId: string, memberId: string, points: number) => {
-    updateGame(gameId, entries => {
-      const next = entries.map(e => (e.memberId === memberId ? { ...e, points } : e))
-      return applyAutoRanks(next)
-    })
   }
 
   /** 参加者だけで素点順に順位を振り直す（不参加は末尾） */
@@ -163,6 +209,12 @@ export function MahjongLedger() {
     let rest = playing.length
     return entries.map(e =>
       e.playing ? { ...e, rank: rankById.get(e.memberId) ?? e.rank } : { ...e, rank: ++rest }
+    )
+  }
+
+  const setPoints = (gameId: string, memberId: string, points: number) => {
+    updateGame(gameId, entries =>
+      applyAutoRanks(entries.map(e => (e.memberId === memberId ? { ...e, points } : e)))
     )
   }
 
@@ -190,22 +242,26 @@ export function MahjongLedger() {
 
   /* ---------------- calculation ---------------- */
 
-  const gameResults = useMemo(
-    () =>
-      games.map(g => {
-        // メンバー追加後の半荘には枠がないので補完する
-        const entries = members.map<GameEntry>(m => {
-          const found = g.entries.find(e => e.memberId === m.id)
-          return found ?? { memberId: m.id, points: settings.startPoints, rank: 99, playing: false }
-        })
-        return calcGame({ ...g, entries }, settings)
+  /** メンバー追加後の半荘には枠がないので補完する */
+  const entriesOf = useCallback(
+    (g: Game): GameEntry[] =>
+      members.map(m => {
+        const found = g.entries.find(e => e.memberId === m.id)
+        return found ?? { memberId: m.id, points: settings.startPoints, rank: 99, playing: false }
       }),
-    [games, members, settings]
+    [members, settings.startPoints]
   )
 
+  const gameResults = useMemo(
+    () => games.map(g => calcGame({ ...g, entries: entriesOf(g) }, settings)),
+    [games, entriesOf, settings]
+  )
+
+  const venueCalc = calcVenue(venue, members.length)
+
   const totals = useMemo(() => {
-    const map = new Map<string, { games: number; score: number; yen: number; ranks: number[] }>()
-    members.forEach(m => map.set(m.id, { games: 0, score: 0, yen: 0, ranks: [] }))
+    const map = new Map<string, { games: number; score: number; yen: number; ranks: number[]; tobi: number }>()
+    members.forEach(m => map.set(m.id, { games: 0, score: 0, yen: 0, ranks: [], tobi: 0 }))
     gameResults.forEach(res => {
       res.results.forEach(r => {
         const t = map.get(r.memberId)
@@ -214,25 +270,41 @@ export function MahjongLedger() {
         t.score += r.score
         t.yen += r.yen
         t.ranks.push(r.rank)
+        if (r.tobi) t.tobi += 1
       })
     })
     return members.map(m => {
       const t = map.get(m.id)!
-      const avgRank = t.ranks.length
-        ? t.ranks.reduce((s, r) => s + r, 0) / t.ranks.length
-        : 0
-      return { id: m.id, name: m.name, ...t, avgRank }
+      const avgRank = t.ranks.length ? t.ranks.reduce((s, r) => s + r, 0) / t.ranks.length : 0
+      return {
+        id: m.id,
+        name: m.name,
+        ...t,
+        avgRank,
+        // 場所代を引いた最終的な収支
+        finalYen: t.yen - venueCalc.perPerson,
+      }
     })
-  }, [members, gameResults])
+  }, [members, gameResults, venueCalc.perPerson])
 
-  const settlements = useMemo(
-    () => calcSettlements(totals.map(t => ({ name: t.name, yen: t.yen }))),
-    [totals]
-  )
+  const settlements = useMemo(() => {
+    const balances = totals.map(t => ({
+      name: t.name,
+      // 立替者がいる場合は集めた分を戻す（＝みんなが立替者に払う）
+      yen:
+        venue.payerId === t.id
+          ? t.finalYen + venueCalc.collected
+          : venue.payerId
+            ? t.finalYen
+            : t.yen,
+    }))
+    return calcSettlements(balances)
+  }, [totals, venue.payerId, venueCalc.collected])
 
   const handleReset = () => {
-    setData({ ...defaultData, members: [], games: [] })
+    setData({ ...defaultData, members: [], games: [], venue: { ...defaultData.venue } })
     setConfirmReset(false)
+    setOpenGameId(null)
   }
 
   const memberName = (id: string) => members.find(m => m.id === id)?.name ?? '?'
@@ -256,36 +328,43 @@ export function MahjongLedger() {
           <div className="mjl-settings">
             <div className="mjl-setting-row">
               <label>配給原点</label>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={settings.startPoints || ''}
-                onChange={e => updateSettings({ startPoints: Number(e.target.value) || 0 })}
+              <NumberField
+                value={settings.startPoints}
+                onChange={v => updateSettings({ startPoints: v })}
                 placeholder="25000"
+                emptyWhenZero
               />
               <span className="mjl-unit">点</span>
             </div>
             <div className="mjl-setting-row">
               <label>返し点</label>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={settings.returnPoints || ''}
-                onChange={e => updateSettings({ returnPoints: Number(e.target.value) || 0 })}
+              <NumberField
+                value={settings.returnPoints}
+                onChange={v => updateSettings({ returnPoints: v })}
                 placeholder="30000"
+                emptyWhenZero
               />
               <span className="mjl-unit">点</span>
             </div>
             <div className="mjl-setting-row">
               <label>レート</label>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={settings.rate || ''}
-                onChange={e => updateSettings({ rate: Number(e.target.value) || 0 })}
+              <NumberField
+                value={settings.rate}
+                onChange={v => updateSettings({ rate: v })}
                 placeholder="50"
+                emptyWhenZero
               />
               <span className="mjl-unit">円 / 1000点</span>
+            </div>
+            <div className="mjl-setting-row">
+              <label>トビ賞</label>
+              <NumberField
+                value={settings.tobiBonus}
+                onChange={v => updateSettings({ tobiBonus: v })}
+                placeholder="0"
+                emptyWhenZero
+              />
+              <span className="mjl-unit">pt（飛んだ人→トップ）</span>
             </div>
             <div className="mjl-setting-row">
               <label>ウマ (4人)</label>
@@ -319,9 +398,7 @@ export function MahjongLedger() {
                 ))}
               </select>
             </div>
-            <p className="mjl-note">
-              オカ（返し点との差）は自動でトップに加算されます。
-            </p>
+            <p className="mjl-note">オカ（返し点との差）は自動でトップに加算されます。</p>
           </div>
         )}
       </div>
@@ -334,9 +411,7 @@ export function MahjongLedger() {
             + 追加
           </button>
         </div>
-        {members.length === 0 && (
-          <p className="mjl-empty">まずはメンバーを追加してください</p>
-        )}
+        {members.length === 0 && <p className="mjl-empty">まずはメンバーを追加してください</p>}
         <div className="mjl-member-list">
           {members.map(m => (
             <div key={m.id} className="mjl-member-row">
@@ -357,11 +432,7 @@ export function MahjongLedger() {
       <div className="mjl-block">
         <div className="mjl-block-header">
           <h2>半荘</h2>
-          <button
-            className="mjl-add-btn"
-            onClick={addGame}
-            disabled={members.length < 3}
-          >
+          <button className="mjl-add-btn" onClick={addGame} disabled={members.length < 3}>
             + 半荘を追加
           </button>
         </div>
@@ -372,103 +443,180 @@ export function MahjongLedger() {
         {games.map((g, gi) => {
           const res = gameResults[gi]
           const resultById = new Map(res.results.map(r => [r.memberId, r]))
-          const entries = members.map<GameEntry>(m => {
-            const found = g.entries.find(e => e.memberId === m.id)
-            return found ?? { memberId: m.id, points: settings.startPoints, rank: 99, playing: false }
-          })
           // 入力中に行が動かないよう、並びはメンバー順のまま（不参加だけ末尾へ）
-          const sorted = [...entries].sort((a, b) => Number(b.playing) - Number(a.playing))
+          const entries = [...entriesOf(g)].sort((a, b) => Number(b.playing) - Number(a.playing))
           const expected = settings.startPoints * res.count
+          const open = openGameId === g.id
+          const summary = [...res.results].sort((a, b) => a.rank - b.rank)
 
           return (
-            <div key={g.id} className="mjl-game">
+            <div key={g.id} className={`mjl-game ${open ? 'open' : ''}`}>
               <div className="mjl-game-header">
-                <span className="mjl-game-title">第{gi + 1}半荘</span>
-                <span
-                  className={`mjl-game-total ${res.pointsValid ? 'ok' : 'ng'}`}
+                <button
+                  className="mjl-game-toggle"
+                  onClick={() => setOpenGameId(open ? null : g.id)}
                 >
-                  {res.totalPoints.toLocaleString()} / {expected.toLocaleString()}
-                </span>
+                  <span className="mjl-caret">{open ? '▲' : '▼'}</span>
+                  <span className="mjl-game-title">第{gi + 1}半荘</span>
+                  <span className="mjl-game-count">{res.count}人</span>
+                  <span className={`mjl-game-total ${res.pointsValid ? 'ok' : 'ng'}`}>
+                    {res.totalPoints.toLocaleString()} / {expected.toLocaleString()}
+                  </span>
+                </button>
                 <button className="mjl-remove-btn" onClick={() => removeGame(g.id)}>
                   ×
                 </button>
               </div>
 
-              {members.length > 4 && (
-                <p className="mjl-note mjl-note-inline">名前をタップで参加 / 不参加を切替</p>
+              {!open && summary.length > 0 && (
+                <div className="mjl-game-summary">
+                  {summary.map(r => (
+                    <span key={r.memberId} className="mjl-summary-chip">
+                      <span className={`mjl-summary-rank rank-${r.rank}`}>{r.rank}</span>
+                      <span className="mjl-summary-name">{memberName(r.memberId)}</span>
+                      <span
+                        className={`mjl-summary-yen ${r.yen > 0 ? 'positive' : r.yen < 0 ? 'negative' : ''}`}
+                      >
+                        {r.yen >= 0 ? '+' : ''}
+                        {Math.round(r.yen).toLocaleString()}
+                      </span>
+                    </span>
+                  ))}
+                </div>
               )}
 
-              {sorted.map(e => {
-                const r = resultById.get(e.memberId)
-                return (
-                  <div
-                    key={e.memberId}
-                    className={`mjl-entry ${e.playing ? '' : 'sitting-out'}`}
-                  >
-                    {e.playing ? (
-                      <select
-                        className={`mjl-rank rank-${e.rank}`}
-                        value={e.rank}
-                        onChange={ev => setRank(g.id, e.memberId, Number(ev.target.value))}
+              {open && (
+                <>
+                  <p className="mjl-note mjl-note-inline">
+                    チェックで参加者を選択（デフォルト4人）。素点は「±」でマイナス（飛び）にできます。
+                  </p>
+
+                  {entries.map(e => {
+                    const r = resultById.get(e.memberId)
+                    const tobi = e.playing && e.points < 0
+                    return (
+                      <div
+                        key={e.memberId}
+                        className={`mjl-entry ${e.playing ? '' : 'sitting-out'} ${tobi ? 'tobi' : ''}`}
                       >
-                        {Array.from({ length: res.count }, (_, i) => i + 1).map(n => (
-                          <option key={n} value={n}>
-                            {n}位
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="mjl-rank out">－</span>
-                    )}
+                        <div className="mjl-entry-top">
+                          <button
+                            className={`mjl-check ${e.playing ? 'on' : ''}`}
+                            onClick={() => togglePlaying(g.id, e.memberId)}
+                            aria-label="参加"
+                          >
+                            {e.playing ? '✓' : ''}
+                          </button>
+                          {e.playing ? (
+                            <select
+                              className={`mjl-rank rank-${e.rank}`}
+                              value={e.rank}
+                              onChange={ev => setRank(g.id, e.memberId, Number(ev.target.value))}
+                            >
+                              {Array.from({ length: res.count }, (_, i) => i + 1).map(n => (
+                                <option key={n} value={n}>
+                                  {n}位
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="mjl-rank out">－</span>
+                          )}
+                          <span className="mjl-entry-name">{memberName(e.memberId)}</span>
+                          {tobi && <span className="mjl-tobi-badge">飛び</span>}
+                          {e.playing && r && (
+                            <span
+                              className={`mjl-entry-yen ${r.yen > 0 ? 'positive' : r.yen < 0 ? 'negative' : 'zero'}`}
+                            >
+                              {r.yen >= 0 ? '+' : ''}¥{Math.round(r.yen).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
 
-                    <button
-                      className="mjl-entry-name"
-                      onClick={() => togglePlaying(g.id, e.memberId)}
-                    >
-                      {memberName(e.memberId)}
-                    </button>
+                        {e.playing && (
+                          <div className="mjl-entry-bottom">
+                            <button
+                              className="mjl-sign-btn"
+                              onClick={() => setPoints(g.id, e.memberId, -e.points)}
+                            >
+                              ±
+                            </button>
+                            <NumberField
+                              className="mjl-points"
+                              value={e.points}
+                              onChange={v => setPoints(g.id, e.memberId, v)}
+                            />
+                            <span className="mjl-unit">点</span>
+                            {r && (
+                              <span className="mjl-entry-score">
+                                {r.score >= 0 ? '+' : ''}
+                                {r.score}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
 
-                    {e.playing ? (
-                      <input
-                        className="mjl-points"
-                        type="number"
-                        inputMode="numeric"
-                        step={100}
-                        value={e.points}
-                        onChange={ev =>
-                          setPoints(g.id, e.memberId, Number(ev.target.value) || 0)
-                        }
-                      />
-                    ) : (
-                      <span className="mjl-points-out">不参加</span>
-                    )}
-
-                    {e.playing && r && (
-                      <span
-                        className={`mjl-entry-result ${r.yen > 0 ? 'positive' : r.yen < 0 ? 'negative' : 'zero'}`}
-                      >
-                        <span className="mjl-entry-score">
-                          {r.score >= 0 ? '+' : ''}
-                          {r.score}
-                        </span>
-                        <span className="mjl-entry-yen">
-                          {r.yen >= 0 ? '+' : ''}¥{Math.round(r.yen).toLocaleString()}
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-
-              {!res.pointsValid && res.count >= 2 && (
-                <div className="mjl-warn">
-                  素点の合計が {expected.toLocaleString()} 点になっていません
-                </div>
+                  {!res.pointsValid && res.count >= 2 && (
+                    <div className="mjl-warn">
+                      素点の合計が {expected.toLocaleString()} 点になっていません
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )
         })}
       </div>
+
+      {/* 場所代 */}
+      {members.length > 0 && (
+        <div className="mjl-block">
+          <div className="mjl-block-header">
+            <h2>場所代</h2>
+          </div>
+          <div className="mjl-setting-row">
+            <select
+              className="mjl-venue-mode"
+              value={venue.mode}
+              onChange={e => updateVenue({ mode: e.target.value as VenueFee['mode'] })}
+            >
+              <option value="total">総額</option>
+              <option value="each">1人あたり</option>
+            </select>
+            <NumberField
+              value={venue.amount}
+              onChange={v => updateVenue({ amount: v })}
+              placeholder="0"
+              emptyWhenZero
+            />
+            <span className="mjl-unit">円</span>
+          </div>
+          <div className="mjl-setting-row">
+            <label>立替えた人</label>
+            <select
+              value={venue.payerId ?? ''}
+              onChange={e => updateVenue({ payerId: e.target.value || null })}
+            >
+              <option value="">各自で支払い</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {venueCalc.perPerson > 0 && (
+            <p className="mjl-note">
+              1人あたり ¥{venueCalc.perPerson.toLocaleString()}（{members.length}人・合計 ¥
+              {venueCalc.collected.toLocaleString()}）
+              {venue.payerId && ` / ${memberName(venue.payerId)}さんが立替え → 精算に含みます`}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* 集計 */}
       {games.length > 0 && (
@@ -488,10 +636,13 @@ export function MahjongLedger() {
             </thead>
             <tbody>
               {[...totals]
-                .sort((a, b) => b.yen - a.yen)
+                .sort((a, b) => b.finalYen - a.finalYen)
                 .map(t => (
                   <tr key={t.id}>
-                    <td className="mjl-td-name">{t.name}</td>
+                    <td className="mjl-td-name">
+                      {t.name}
+                      {t.tobi > 0 && <span className="mjl-tobi-count">飛{t.tobi}</span>}
+                    </td>
                     <td>{t.games}</td>
                     <td>{t.games ? t.avgRank.toFixed(2) : '-'}</td>
                     <td className={t.score > 0 ? 'positive' : t.score < 0 ? 'negative' : ''}>
@@ -499,14 +650,17 @@ export function MahjongLedger() {
                       {t.score}
                     </td>
                     <td
-                      className={`mjl-td-yen ${t.yen > 0 ? 'positive' : t.yen < 0 ? 'negative' : ''}`}
+                      className={`mjl-td-yen ${t.finalYen > 0 ? 'positive' : t.finalYen < 0 ? 'negative' : ''}`}
                     >
-                      {t.yen >= 0 ? '+' : ''}¥{Math.round(t.yen).toLocaleString()}
+                      {t.finalYen >= 0 ? '+' : ''}¥{Math.round(t.finalYen).toLocaleString()}
                     </td>
                   </tr>
                 ))}
             </tbody>
           </table>
+          {venueCalc.perPerson > 0 && (
+            <p className="mjl-note">収支は場所代（1人 ¥{venueCalc.perPerson.toLocaleString()}）を引いた金額です。</p>
+          )}
 
           <div className="mjl-settlement">
             <h3>精算</h3>

@@ -200,10 +200,28 @@
   padding: 10px;
 }
 
+.mjl-game.open {
+  background: rgba(255, 255, 255, 0.07);
+}
+
 .mjl-game-header {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.mjl-game-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
 .mjl-game-title {
@@ -212,10 +230,63 @@
   color: #ddd;
 }
 
+.mjl-game-count {
+  font-size: 0.7rem;
+  color: #888;
+}
+
 .mjl-game-total {
   margin-left: auto;
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* 折りたたみ時のサマリ */
+.mjl-game-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mjl-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-size: 0.72rem;
+  max-width: 100%;
+}
+
+.mjl-summary-rank {
+  color: #888;
+  font-weight: 700;
+}
+
+.mjl-summary-rank.rank-1 {
+  color: #f1c40f;
+}
+
+.mjl-summary-name {
+  color: #ddd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 72px;
+}
+
+.mjl-summary-yen {
+  font-variant-numeric: tabular-nums;
+  color: #aaa;
+}
+
+.mjl-summary-yen.positive {
+  color: #2ecc71;
+}
+
+.mjl-summary-yen.negative {
+  color: #e74c3c;
 }
 
 .mjl-game-total.ok {
@@ -228,12 +299,80 @@
 
 .mjl-entry {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 7px 8px;
 }
 
 .mjl-entry.sitting-out {
-  opacity: 0.45;
+  opacity: 0.5;
+  background: none;
+}
+
+.mjl-entry.tobi {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.mjl-entry-top,
+.mjl-entry-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mjl-check {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mjl-check.on {
+  background: #27ae60;
+  border-color: #27ae60;
+}
+
+.mjl-sign-btn {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ddd;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.mjl-sign-btn:active {
+  opacity: 0.7;
+}
+
+.mjl-tobi-badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.18);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+.mjl-tobi-count {
+  margin-left: 5px;
+  font-size: 0.62rem;
+  color: #e74c3c;
 }
 
 .mjl-rank {
@@ -281,21 +420,16 @@
 .mjl-entry-name {
   flex: 1;
   min-width: 0;
-  padding: 6px 4px;
-  background: none;
-  border: none;
   color: #eee;
   font-size: 0.88rem;
   font-weight: 600;
-  text-align: left;
-  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mjl-points {
-  width: 78px;
+  width: 92px;
   flex-shrink: 0;
   padding: 6px 8px;
   border-radius: 6px;
@@ -312,44 +446,34 @@
   border-color: #3498db;
 }
 
-.mjl-points-out {
-  width: 78px;
-  flex-shrink: 0;
-  font-size: 0.75rem;
-  color: #777;
-  text-align: right;
-}
-
-.mjl-entry-result {
-  width: 84px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.25;
+.mjl-entry-score {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: #999;
   font-variant-numeric: tabular-nums;
 }
 
-.mjl-entry-score {
-  font-size: 0.72rem;
-  color: #999;
-}
-
 .mjl-entry-yen {
-  font-size: 0.85rem;
+  flex-shrink: 0;
+  font-size: 0.88rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.mjl-entry-result.positive .mjl-entry-yen {
+.mjl-entry-yen.positive {
   color: #2ecc71;
 }
 
-.mjl-entry-result.negative .mjl-entry-yen {
+.mjl-entry-yen.negative {
   color: #e74c3c;
 }
 
-.mjl-entry-result.zero .mjl-entry-yen {
+.mjl-entry-yen.zero {
   color: #aaa;
+}
+
+.mjl-venue-mode {
+  flex: 0 0 96px;
 }
 
 .mjl-warn {

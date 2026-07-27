@@ -4,6 +4,7 @@ import {
   computeRanks,
   calcGame,
   calcSettlements,
+  calcVenue,
   type Game,
   type GameEntry,
   type LedgerSettings,
@@ -15,6 +16,7 @@ const settings: LedgerSettings = {
   uma4: [20, 10, -10, -20],
   uma3: [20, 0, -20],
   rate: 50,
+  tobiBonus: 0,
 }
 
 function game(rows: [string, number, number][]): Game {
@@ -161,6 +163,76 @@ describe('calcGame', () => {
     )
     expect(result.pointsValid).toBe(false)
     expect(result.totalPoints).toBe(110000)
+  })
+})
+
+describe('飛び', () => {
+  it('素点がマイナスの人にはtobiフラグが立つ', () => {
+    const result = calcGame(
+      game([
+        ['a', 60000, 1],
+        ['b', 30000, 2],
+        ['c', 15000, 3],
+        ['d', -5000, 4],
+      ]),
+      settings
+    )
+    const tobi = result.results.filter(r => r.tobi).map(r => r.memberId)
+    expect(tobi).toEqual(['d'])
+  })
+
+  it('トビ賞は飛んだ人からトップへ渡り、合計は0のまま', () => {
+    const withTobi: LedgerSettings = { ...settings, tobiBonus: 10 }
+    const rows: [string, number, number][] = [
+      ['a', 60000, 1],
+      ['b', 30000, 2],
+      ['c', 15000, 3],
+      ['d', -5000, 4],
+    ]
+    const base = calcGame(game(rows), settings)
+    const bonus = calcGame(game(rows), withTobi)
+    const scoreOf = (r: typeof base, id: string) =>
+      r.results.find(x => x.memberId === id)!.score
+
+    expect(scoreOf(bonus, 'd')).toBe(scoreOf(base, 'd') - 10)
+    expect(scoreOf(bonus, 'a')).toBe(scoreOf(base, 'a') + 10)
+    expect(scoreOf(bonus, 'b')).toBe(scoreOf(base, 'b'))
+    expect(bonus.results.reduce((s, r) => s + r.score, 0)).toBe(0)
+  })
+})
+
+describe('calcVenue', () => {
+  it('総額を人数で割る（端数は切り上げ）', () => {
+    expect(calcVenue({ mode: 'total', amount: 4000, payerId: null }, 4)).toEqual({
+      perPerson: 1000,
+      collected: 4000,
+    })
+    expect(calcVenue({ mode: 'total', amount: 3800, payerId: null }, 4)).toEqual({
+      perPerson: 950,
+      collected: 3800,
+    })
+    expect(calcVenue({ mode: 'total', amount: 1000, payerId: null }, 3)).toEqual({
+      perPerson: 334,
+      collected: 1002,
+    })
+  })
+
+  it('1人あたり指定はそのまま使う', () => {
+    expect(calcVenue({ mode: 'each', amount: 500, payerId: null }, 4)).toEqual({
+      perPerson: 500,
+      collected: 2000,
+    })
+  })
+
+  it('未入力・メンバー0人なら0', () => {
+    expect(calcVenue({ mode: 'total', amount: 0, payerId: null }, 4)).toEqual({
+      perPerson: 0,
+      collected: 0,
+    })
+    expect(calcVenue({ mode: 'total', amount: 4000, payerId: null }, 0)).toEqual({
+      perPerson: 0,
+      collected: 0,
+    })
   })
 })
 
