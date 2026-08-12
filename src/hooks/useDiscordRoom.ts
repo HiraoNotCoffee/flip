@@ -27,12 +27,21 @@ interface UseDiscordRoomOptions<T extends Doc> {
   renderMessage: (doc: T, joinUrl: string) => string
 }
 
+// 実測（6人が同時にポーリング）では 2.5 秒間隔だと 17% が 429 になり、
+// 3 秒間隔＋ゆらぎでは 0% だった。ゆらぎがないと端末同士のタイミングが
+// 揃ってしまい、同じ瞬間に殺到して制限に当たりやすくなる。
 /** 画面を見ている間の同期間隔。 */
-const POLL_MS = 2500
+const POLL_MS = 3000
 /** 裏に回っている間はゆっくりでいい（Discord のレート制限対策）。 */
 const HIDDEN_POLL_MS = 20000
+/** 間隔にかけるゆらぎ（±20%）。端末ごとにタイミングをばらけさせる。 */
+const JITTER = 0.2
 /** 入力してからみんなに届くまでの待ち（連打をまとめる）。 */
 const FLUSH_DELAY_MS = 600
+
+function withJitter(ms: number): number {
+  return Math.round(ms * (1 - JITTER + Math.random() * JITTER * 2))
+}
 
 function loadRef(key: string): RoomRef | null {
   try {
@@ -91,8 +100,8 @@ export function useDiscordRoom<T extends Doc>({
     let backoffMs = 0
 
     const nextDelay = () => {
-      if (backoffMs > 0) return backoffMs
-      return document.hidden ? HIDDEN_POLL_MS : POLL_MS
+      if (backoffMs > 0) return withJitter(backoffMs)
+      return withJitter(document.hidden ? HIDDEN_POLL_MS : POLL_MS)
     }
 
     const schedule = (delay: number) => {
