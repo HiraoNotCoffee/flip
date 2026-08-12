@@ -66,18 +66,18 @@ describe('embedState / extractState', () => {
   it('round-trips through a Discord message body', () => {
     const message = embedState('🃏 チップ計算\n田中さん +¥12,000', state)
     expect(message).toContain('🃏 チップ計算')
-    expect(extractState(message)).toEqual(state)
+    expect(extractState(message)?.state).toEqual(state)
   })
 
   it('survives multi-byte text and newlines in the readable part', () => {
     const readable = '精算\n山田 → 田中 ¥5,000\n▶ アプリで開く: https://example.com/#dc=abc'
-    expect(extractState(embedState(readable, state))).toEqual(state)
+    expect(extractState(embedState(readable, state))?.state).toEqual(state)
   })
 
   it('keeps the message within the Discord limit by trimming the readable part', () => {
     const message = embedState('あ'.repeat(5000), state)
     expect(message.length).toBeLessThanOrEqual(MESSAGE_LIMIT)
-    expect(extractState(message)).toEqual(state)
+    expect(extractState(message)?.state).toEqual(state)
   })
 
   it('throws when even the state alone would not fit', () => {
@@ -90,12 +90,21 @@ describe('embedState / extractState', () => {
   it('returns null when the message has no state', () => {
     expect(extractState('ただのメッセージ')).toBeNull()
     expect(extractState('-# ⟨sync⟩ v9.abc')).toBeNull()
-    expect(extractState('-# ⟨sync⟩ v1.!!!not-base64!!!')).toBeNull()
+    expect(extractState('-# ⟨sync⟩ v2.!!!not-base64!!!')).toBeNull()
   })
 
   it('reads the last state line when someone quotes an older one', () => {
     const older = embedState('古い', { c: 1 })
     const newer = embedState(`${older}\n引用`, { c: 2 })
-    expect(extractState(newer)).toEqual({ c: 2 })
+    expect(extractState(newer)?.state).toEqual({ c: 2 })
+  })
+})
+
+describe('state version', () => {
+  it('still reads pre-encryption (v1) messages so old rooms keep working', () => {
+    const json = JSON.stringify({ rake: 7 })
+    const b64 = Buffer.from(json, 'utf-8').toString('base64url')
+    const legacy = `## 古いメッセージ\n-# ⟨sync⟩ v1.${b64}`
+    expect(extractState(legacy)).toEqual({ version: 'v1', state: { rake: 7 } })
   })
 })

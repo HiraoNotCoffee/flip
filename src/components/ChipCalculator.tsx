@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useDiscordRoom } from '../hooks/useDiscordRoom'
 import { roomRefFromHash } from '../utils/discordSync'
+import { CODE_LENGTH, formatCode, normalizeCode } from '../utils/roomCrypto'
 import { getClientId } from '../utils/clientId'
 import {
   accessOf,
@@ -34,6 +35,7 @@ interface ChipData {
 const STORAGE_KEY = 'chip-calculator-data'
 const ROOM_STORAGE_KEY = 'chip-calculator-room'
 const WEBHOOK_STORAGE_KEY = 'chip-calculator-webhook'
+const CODE_STORAGE_KEY = 'chip-calculator-code'
 /** 共有に参加する前の自分のデータ。共有をやめたら書き戻す。 */
 const BACKUP_STORAGE_KEY = 'chip-calculator-backup'
 
@@ -168,68 +170,22 @@ function fromDoc(doc: ChipDoc): ChipData {
   }
 }
 
-/** Discord のチャンネルに出る本文。アプリを開いていない人もこれで状況が分かる。 */
-function renderDiscordMessage(doc: ChipDoc, joinUrl: string): string {
-  const data = fromDoc(doc)
+/**
+ * Discord のチャンネルに出る本文。
+ * 収支そのものは暗号化されて末尾の同期用データに入っているので、ここには出さない
+ * （チャンネルにいるだけの人に読まれないようにするのがコードの目的なので、
+ * 人が読める表を出してしまうと意味がなくなる）。
+ */
+function renderDiscordMessage(joinUrl: string): string {
   const lines: string[] = []
-  lines.push(`## 🃏 チップ計算`)
-  lines.push(
-    `100BB = ${data.chipsPer100BB.toLocaleString()} chips ／ 1バイイン = ¥${data.buyInYen.toLocaleString()}` +
-      (data.rake > 0 ? ` ／ レーキ ${data.rake.toLocaleString()}` : '')
-  )
-  lines.push('')
-
-  if (data.players.length === 0) {
-    lines.push('*まだプレイヤーがいません*')
-  } else {
-    const ranked = [...data.players].sort((a, b) => calcPnl(data, b) - calcPnl(data, a))
-    for (const p of ranked) {
-      const pnl = Math.round(calcPnl(data, p))
-      const sign = pnl > 0 ? '+' : pnl < 0 ? '−' : '±'
-      const mark = pnl > 0 ? '🟢' : pnl < 0 ? '🔴' : '⚪'
-      // `-#`（小文字装飾）は行頭でしか効かないので、行の途中では使わない
-      lines.push(
-        `${mark} **${p.name || '(名無し)'}** ${sign}¥${Math.abs(pnl).toLocaleString()}` +
-          ` (${p.rebuyCount}バイイン / ${p.finalChips.toLocaleString()} chips)`
-      )
-    }
-
-    const totalBuyInChips = data.players.reduce(
-      (sum, p) => sum + data.chipsPer100BB * p.rebuyCount,
-      0
-    )
-    const totalFinalChips = data.players.reduce((sum, p) => sum + p.finalChips, 0)
-    const chipDiff = totalFinalChips + data.rake - totalBuyInChips
-    if (chipDiff !== 0) {
-      lines.push('')
-      lines.push(`⚠️ チップが ${chipDiff > 0 ? '+' : ''}${chipDiff.toLocaleString()} 合いません`)
-    }
-
-    const settlements = computeSettlements(data)
-    if (settlements.length > 0) {
-      lines.push('')
-      lines.push('**精算**')
-      for (const s of settlements) {
-        lines.push(
-          `${s.from || '(名無し)'} → ${s.to || '(名無し)'} ¥${s.amount.toLocaleString()}`
-        )
-      }
-    }
-  }
-
-  const waiting = pendingMembers(doc)
-  if (waiting.length > 0) {
-    lines.push('')
-    lines.push(
-      `🙋 **参加リクエスト** — ${waiting.map(w => w.member.name).join('、')}` +
-        `（ホストがアプリで承認してください）`
-    )
-  }
-
+  lines.push('## 🃏 チップ計算')
+  lines.push('🔒 中身はコードを知っている人だけが開けます。')
   lines.push('')
   lines.push(`-# 更新 <t:${Math.floor(Date.now() / 1000)}:T>`)
-  if (joinUrl) lines.push(`▶ アプリで開く: ${joinUrl}`)
-
+  if (joinUrl) {
+    lines.push(`▶ アプリで開く: ${joinUrl}`)
+    lines.push('-# 開いたあと、ホストから聞いたコードを入力してください。')
+  }
   return lines.join('\n')
 }
 
@@ -246,6 +202,7 @@ export function ChipCalculator() {
   const room = useDiscordRoom<ChipDoc>({
     storageKey: ROOM_STORAGE_KEY,
     webhookStorageKey: WEBHOOK_STORAGE_KEY,
+    codeStorageKey: CODE_STORAGE_KEY,
     getDoc: () => toDoc(dataRef.current),
     onRemoteDoc: applyRemote,
     renderMessage: renderDiscordMessage,
@@ -350,9 +307,11 @@ export function ChipCalculator() {
   const inRoom = room.room !== null
   const synced = room.lastSyncAt !== null
   /** 共有中に自分がまだ画面を見られない状態か。 */
-  const gate: 'none' | 'connecting' | 'form' | 'pending' | 'denied' = !inRoom
+  const gate: 'none' | 'connecting' | 'code' | 'form' | 'pending' | 'denied' = !inRoom
     ? 'none'
-    : !synced
+    : room.needsCode
+      ? 'code'
+      : !synced
       ? 'connecting'
       : access === 'host' || access === 'approved'
         ? 'none'
@@ -363,6 +322,7 @@ export function ChipCalculator() {
             : 'form'
 
   const [nameInput, setNameInput] = useState('')
+  const [codeInput, setCodeInput] = useState('')
   const waiting = pendingMembers(data)
   const joined = approvedMembers(data)
 
@@ -394,13 +354,13 @@ export function ChipCalculator() {
   const [hostNameInput, setHostNameInput] = useState('')
   const [showHowTo, setShowHowTo] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'code' | 'link' | null>(null)
 
-  const copyJoinUrl = async () => {
+  const copyText = async (text: string, kind: 'code' | 'link') => {
     try {
-      await navigator.clipboard.writeText(room.joinUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      await navigator.clipboard.writeText(text)
+      setCopied(kind)
+      setTimeout(() => setCopied(null), 1500)
     } catch {
       // クリップボードが使えない環境では手でコピーしてもらう
     }
@@ -415,11 +375,11 @@ export function ChipCalculator() {
       hostId: myId,
       members: { [myId]: { name: hostName, status: 'approved', at: Date.now() } },
     }))
-    const ok = await room.start(url)
+    const issued = await room.start(url)
     setBusy(false)
-    if (ok) {
+    if (issued) {
       setWebhookInput('')
-      setShareOpen(false)
+      // 発行したコードは伝えてもらう必要があるので、閉じずに見せたままにする
     }
   }
 
@@ -472,9 +432,11 @@ export function ChipCalculator() {
             <span className={`share-status share-status-${room.status}`}>
               {room.status === 'live'
                 ? `Discord と同期中${lastSyncLabel ? ` ・ ${lastSyncLabel}` : ''}`
-                : room.status === 'error'
-                  ? '同期できていません'
-                  : '接続中…'}
+                : room.status === 'locked'
+                  ? 'コード待ち'
+                  : room.status === 'error'
+                    ? '同期できていません'
+                    : '接続中…'}
             </span>
             <button className="share-open-btn" onClick={() => setShareOpen(true)}>
               共有設定
@@ -495,6 +457,39 @@ export function ChipCalculator() {
             <>
               <div className="gate-spinner" />
               <h3>共有に接続しています…</h3>
+            </>
+          )}
+
+          {gate === 'code' && (
+            <>
+              <div className="gate-lock">🔒</div>
+              <h3>コードを入力</h3>
+              <p className="gate-note">
+                このルームの中身はコードで暗号化されています。
+                <br />
+                ホストから聞いたコードを入力してください。
+              </p>
+              <input
+                className="gate-code-input"
+                value={codeInput}
+                onChange={e => setCodeInput(e.target.value.toUpperCase())}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') room.unlock(codeInput)
+                }}
+                placeholder="ABCD-EFGH"
+                maxLength={CODE_LENGTH + 1}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus
+              />
+              <button
+                className="gate-submit-btn"
+                disabled={normalizeCode(codeInput).length !== CODE_LENGTH}
+                onClick={() => room.unlock(codeInput)}
+              >
+                開く
+              </button>
             </>
           )}
 
@@ -790,13 +785,25 @@ export function ChipCalculator() {
             {room.room ? (
               <>
                 <p className="share-note">
-                  Discord のメッセージが共有の実体です。チャンネルの「▶ アプリで開く」を
-                  みんながタップすれば、同じ画面が数秒ごとに同期されます。
+                  <strong>リンクとコードの2つ</strong>で共有します。リンクは Discord に貼ってあるので、
+                  コードだけ口頭で伝えてください。リンクだけでは中身は開けません。
                 </p>
+                {room.code && (
+                  <>
+                    <div className="share-code-label">コード（口頭で伝える）</div>
+                    <button
+                      className="share-code-big"
+                      onClick={() => void copyText(room.code!, 'code')}
+                    >
+                      {formatCode(room.code)}
+                    </button>
+                  </>
+                )}
+                <div className="share-code-label">参加リンク（Discord に投稿済み）</div>
                 <div className="share-link-box">{room.joinUrl}</div>
                 <div className="share-actions">
-                  <button onClick={() => void copyJoinUrl()}>
-                    {copied ? 'コピーしました' : '参加リンクをコピー'}
+                  <button onClick={() => void copyText(room.joinUrl, 'link')}>
+                    {copied === 'link' ? 'コピーしました' : '参加リンクをコピー'}
                   </button>
                 </div>
 

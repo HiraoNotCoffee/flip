@@ -898,3 +898,59 @@
   color: #10241a;
   font-weight: 700;
 }
+
+/* -------------------------------------------------------- Room code (lock) */
+
+.gate-lock {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.gate-code-input {
+  width: 100%;
+  max-width: 260px;
+  box-sizing: border-box;
+  padding: 14px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-align: center;
+}
+
+.gate-code-input:focus {
+  outline: none;
+  border-color: #5865f2;
+}
+
+.share-code-label {
+  margin: 14px 0 6px;
+  font-size: 0.7rem;
+  color: #888;
+  text-align: left;
+  letter-spacing: 0.5px;
+}
+
+.share-code-big {
+  display: block;
+  width: 100%;
+  padding: 14px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(46, 204, 113, 0.35);
+  background: rgba(46, 204, 113, 0.1);
+  color: #2ecc71;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.share-code-big:active {
+  opacity: 0.8;
+}

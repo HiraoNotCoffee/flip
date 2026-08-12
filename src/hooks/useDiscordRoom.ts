@@ -11,20 +11,33 @@ import {
   writeRoomMessage,
   type RoomRef,
 } from '../utils/discordSync'
+import {
+  deriveKey,
+  generateCode,
+  normalizeCode,
+  open,
+  randomSalt,
+  saltOf,
+  seal,
+  WrongCodeError,
+  type SealedBox,
+} from '../utils/roomCrypto'
 
-export type RoomStatus = 'idle' | 'connecting' | 'live' | 'error'
+export type RoomStatus = 'idle' | 'connecting' | 'locked' | 'live' | 'error'
 
 interface UseDiscordRoomOptions<T extends Doc> {
   /** 参加中のルーム情報を覚えておく localStorage キー */
   storageKey: string
   /** ウェブフックURLを覚えておく localStorage キー */
   webhookStorageKey: string
+  /** ルームのコードを覚えておく localStorage キー */
+  codeStorageKey: string
   /** 現在のローカルデータ */
   getDoc: () => T
   /** 相手の変更が届いたときに呼ばれる */
   onRemoteDoc: (doc: T) => void
   /** Discord に出す人が読む本文（末尾の同期用データはこのフックが足す） */
-  renderMessage: (doc: T, joinUrl: string) => string
+  renderMessage: (joinUrl: string) => string
 }
 
 // 実測（6人が同時にポーリング）では 2.5 秒間隔だと 17% が 429 になり、
@@ -55,9 +68,24 @@ function loadRef(key: string): RoomRef | null {
   return null
 }
 
+/** コードはルームごとに覚える（別のルームに入ったら効かない）。 */
+function loadCode(key: string, messageId: string | undefined): string | null {
+  if (!messageId) return null
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { messageId?: string; code?: string }
+    if (parsed?.messageId === messageId && parsed.code) return parsed.code
+  } catch {
+    // ignore
+  }
+  return null
+}
+
 export function useDiscordRoom<T extends Doc>({
   storageKey,
   webhookStorageKey,
+  codeStorageKey,
   getDoc,
   onRemoteDoc,
   renderMessage,
@@ -66,6 +94,9 @@ export function useDiscordRoom<T extends Doc>({
   const [status, setStatus] = useState<RoomStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null)
+  const [code, setCode] = useState<string | null>(() =>
+    loadCode(codeStorageKey, loadRef(storageKey)?.messageId)
+  )
   const [savedWebhookUrl, setSavedWebhookUrl] = useState<string>(
     () => localStorage.getItem(webhookStorageKey) ?? ''
   )
@@ -75,6 +106,11 @@ export function useDiscordRoom<T extends Doc>({
   const scheduleRef = useRef<((delay: number) => void) | null>(null)
   const lastApplied = useRef<string>('')
 
+  // 鍵はコードから作るのが重い（PBKDF2 30万回）ので使い回す
+  const keyRef = useRef<{ key: CryptoKey; salt: Uint8Array; code: string } | null>(null)
+  const codeRef = useRef<string | null>(code)
+  codeRef.current = code
+
   const getDocRef = useRef(getDoc)
   const onRemoteRef = useRef(onRemoteDoc)
   const renderRef = useRef(renderMessage)
@@ -82,9 +118,27 @@ export function useDiscordRoom<T extends Doc>({
   onRemoteRef.current = onRemoteDoc
   renderRef.current = renderMessage
 
-  const compose = useCallback((doc: T, joinUrl: string) => {
-    return embedState(renderRef.current(doc, joinUrl), doc)
+  /** コードと salt から鍵を用意する（同じ組み合わせなら作り直さない）。 */
+  const keyFor = useCallback(async (theCode: string, salt: Uint8Array): Promise<CryptoKey> => {
+    const cached = keyRef.current
+    const saltB64 = String.fromCharCode(...salt)
+    if (cached && cached.code === theCode && String.fromCharCode(...cached.salt) === saltB64) {
+      return cached.key
+    }
+    const key = await deriveKey(theCode, salt)
+    keyRef.current = { key, salt, code: theCode }
+    return key
   }, [])
+
+  /** ドキュメントを暗号化してメッセージ本文を組み立てる。 */
+  const composeMessage = useCallback(
+    async (doc: T, ref: RoomRef, theCode: string, salt: Uint8Array): Promise<string> => {
+      const key = await keyFor(theCode, salt)
+      const box = await seal(doc, key, salt)
+      return embedState(renderRef.current(buildJoinUrl(ref)), box)
+    },
+    [keyFor]
+  )
 
   // 同期ループ
   useEffect(() => {
@@ -93,6 +147,7 @@ export function useDiscordRoom<T extends Doc>({
       setStatus('idle')
       overrides.current = {}
       lastApplied.current = ''
+      keyRef.current = null
       return
     }
 
@@ -117,20 +172,43 @@ export function useDiscordRoom<T extends Doc>({
         const content = await readRoomMessage(room)
         if (cancelled) return
 
-        const remote = extractState<T>(content)
-        if (!remote) {
+        const found = extractState<SealedBox | T>(content)
+        if (!found) {
           throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
+        }
+
+        // v1 は暗号化前の平文。v2 はコードで開ける箱。
+        let remote: T
+        let salt: Uint8Array | null = null
+        if (found.version === 'v1') {
+          remote = found.state as T
+        } else {
+          const box = found.state as SealedBox
+          salt = saltOf(box)
+          const theCode = codeRef.current
+          if (!theCode) {
+            setStatus('locked')
+            setError(null)
+            return // コードが入力されるまで止める
+          }
+          const key = await keyFor(theCode, salt)
+          if (cancelled) return
+          remote = await open<T>(box, key)
         }
 
         let doc = remote
         const pending = { ...overrides.current }
         if (Object.keys(pending).length > 0) {
           doc = applyPatch(remote, pending) as T
-          await writeRoomMessage(room, compose(doc, buildJoinUrl(room)))
-          if (cancelled) return
-          // 送れた分だけ取り下げる（送信中に入った新しい変更は残す）
-          for (const [path, value] of Object.entries(pending)) {
-            if (overrides.current[path] === value) delete overrides.current[path]
+          const theCode = codeRef.current
+          // v1 のルームも、書き戻すときに v2（暗号化）へ移行する
+          const writeSalt = salt ?? randomSalt()
+          if (theCode) {
+            await writeRoomMessage(room, await composeMessage(doc, room, theCode, writeSalt))
+            if (cancelled) return
+            for (const [path, value] of Object.entries(pending)) {
+              if (overrides.current[path] === value) delete overrides.current[path]
+            }
           }
         }
 
@@ -146,6 +224,12 @@ export function useDiscordRoom<T extends Doc>({
         setLastSyncAt(Date.now())
       } catch (e) {
         if (cancelled) return
+        if (e instanceof WrongCodeError) {
+          keyRef.current = null
+          setStatus('locked')
+          setError(e.message)
+          return // 正しいコードが入るまで止める
+        }
         const err =
           e instanceof DiscordSyncError
             ? e
@@ -179,7 +263,7 @@ export function useDiscordRoom<T extends Doc>({
       scheduleRef.current = null
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [room, compose])
+  }, [room, composeMessage, keyFor])
 
   /** ローカルの変更を「送る予定の差分」として溜め、まもなく Discord へ送る。 */
   const push = useCallback((prev: T, next: T) => {
@@ -190,47 +274,55 @@ export function useDiscordRoom<T extends Doc>({
     scheduleRef.current(FLUSH_DELAY_MS)
   }, [])
 
-  /** ウェブフックURLから新しい共有を始める（Discord にメッセージを1通投稿する）。 */
+  /** 新しい共有を始める。コードを発行し、現在のデータを暗号化して1通投稿する。 */
   const start = useCallback(
-    async (webhookUrl: string): Promise<boolean> => {
+    async (webhookUrl: string): Promise<string | null> => {
       const hook = parseWebhookUrl(webhookUrl)
       if (!hook) {
         setError('ウェブフックURLの形式が違うようです')
-        return false
+        return null
       }
       setStatus('connecting')
       setError(null)
       try {
+        const newCode = generateCode()
+        const salt = randomSalt()
         const doc = getDocRef.current()
-        const messageId = await createRoomMessage(hook, compose(doc, ''))
-        const ref: RoomRef = { ...hook, messageId }
+        const key = await keyFor(newCode, salt)
+        const box = await seal(doc, key, salt)
+
         // 参加リンクはメッセージIDが決まってからでないと作れないので、投稿後に入れ直す
-        await writeRoomMessage(ref, compose(doc, buildJoinUrl(ref)))
+        const messageId = await createRoomMessage(hook, embedState(renderRef.current(''), box))
+        const ref: RoomRef = { ...hook, messageId }
+        await writeRoomMessage(ref, await composeMessage(doc, ref, newCode, salt))
 
         localStorage.setItem(webhookStorageKey, webhookUrl.trim())
         localStorage.setItem(storageKey, JSON.stringify(ref))
+        localStorage.setItem(codeStorageKey, JSON.stringify({ messageId, code: newCode }))
         setSavedWebhookUrl(webhookUrl.trim())
         lastApplied.current = JSON.stringify(doc)
         overrides.current = {}
+        setCode(newCode)
+        codeRef.current = newCode
         setRoom(ref)
-        return true
+        return newCode
       } catch (e) {
         setStatus('error')
         setError(e instanceof Error ? e.message : String(e))
-        return false
+        return null
       }
     },
-    [compose, storageKey, webhookStorageKey]
+    [composeMessage, keyFor, storageKey, webhookStorageKey, codeStorageKey]
   )
 
-  /** 共有リンクから参加する。 */
+  /** 共有リンクから参加する。中身を読むにはこのあと unlock でコードが要る。 */
   const join = useCallback(
     async (ref: RoomRef): Promise<boolean> => {
       setStatus('connecting')
       setError(null)
       try {
         const content = await readRoomMessage(ref)
-        if (!extractState<T>(content)) {
+        if (!extractState(content)) {
           setStatus('error')
           setError('この共有リンクのメッセージには同期データがありません')
           return false
@@ -238,6 +330,10 @@ export function useDiscordRoom<T extends Doc>({
         localStorage.setItem(storageKey, JSON.stringify(ref))
         overrides.current = {}
         lastApplied.current = ''
+        keyRef.current = null
+        const known = loadCode(codeStorageKey, ref.messageId)
+        setCode(known)
+        codeRef.current = known
         setRoom(ref)
         return true
       } catch (e) {
@@ -246,16 +342,41 @@ export function useDiscordRoom<T extends Doc>({
         return false
       }
     },
-    [storageKey]
+    [storageKey, codeStorageKey]
+  )
+
+  /** コードを入れて中身を開く。合っているかは次の同期で分かる。 */
+  const unlock = useCallback(
+    (input: string) => {
+      const normalized = normalizeCode(input)
+      if (!normalized) return
+      keyRef.current = null
+      codeRef.current = normalized
+      setCode(normalized)
+      setError(null)
+      setStatus('connecting')
+      if (room) {
+        localStorage.setItem(
+          codeStorageKey,
+          JSON.stringify({ messageId: room.messageId, code: normalized })
+        )
+      }
+      scheduleRef.current?.(0)
+    },
+    [room, codeStorageKey]
   )
 
   /** 共有から抜ける（Discord のメッセージはそのまま残る）。 */
   const leave = useCallback(() => {
     localStorage.removeItem(storageKey)
+    localStorage.removeItem(codeStorageKey)
     overrides.current = {}
+    keyRef.current = null
+    setCode(null)
+    codeRef.current = null
     setError(null)
     setRoom(null)
-  }, [storageKey])
+  }, [storageKey, codeStorageKey])
 
   const forgetWebhook = useCallback(() => {
     localStorage.removeItem(webhookStorageKey)
@@ -268,10 +389,13 @@ export function useDiscordRoom<T extends Doc>({
     error,
     lastSyncAt,
     savedWebhookUrl,
+    code,
+    needsCode: status === 'locked',
     joinUrl: room ? buildJoinUrl(room) : '',
     push,
     start,
     join,
+    unlock,
     leave,
     forgetWebhook,
   }

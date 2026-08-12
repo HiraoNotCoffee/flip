@@ -11,7 +11,10 @@ const API_BASE = 'https://discord.com/api/v10'
 
 /** メッセージ末尾に忍ばせる機械可読な状態行の目印。 */
 const STATE_PREFIX = '-# ⟨sync⟩ '
-const STATE_VERSION = 'v1'
+/** v1 = 平文（コード導入前）、v2 = コードで暗号化。書き込みは常に v2。 */
+const STATE_VERSION = 'v2'
+const READABLE_VERSIONS = ['v1', 'v2'] as const
+export type StateVersion = (typeof READABLE_VERSIONS)[number]
 
 /** Discord のメッセージ本文の上限。 */
 export const MESSAGE_LIMIT = 2000
@@ -103,7 +106,11 @@ export function roomRefFromHash(hash: string): RoomRef | null {
 
 // ------------------------------------------------------- 状態の埋め込み
 
-/** 人が読む本文の末尾に、機械可読な状態を1行だけ足す。 */
+/**
+ * 人が読む本文の末尾に、機械可読な状態を1行だけ足す。
+ * state は暗号化済みの箱（SealedBox）でも平文のオブジェクトでもよく、
+ * ここでは中身を解釈せず JSON にして base64url で載せるだけ。
+ */
 export function embedState(readable: string, state: unknown): string {
   const line = `${STATE_PREFIX}${STATE_VERSION}.${b64urlEncode(JSON.stringify(state))}`
   const body = `${readable.trimEnd()}\n${line}`
@@ -120,14 +127,19 @@ export function embedState(readable: string, state: unknown): string {
 }
 
 /** メッセージ本文から状態を取り出す。見つからなければ null。 */
-export function extractState<T>(content: string): T | null {
+export function extractState<T>(content: string): { version: StateVersion; state: T } | null {
   const index = content.lastIndexOf(STATE_PREFIX)
   if (index < 0) return null
   const payload = content.slice(index + STATE_PREFIX.length).trim()
   const dot = payload.indexOf('.')
-  if (dot < 0 || payload.slice(0, dot) !== STATE_VERSION) return null
+  if (dot < 0) return null
+  const version = payload.slice(0, dot)
+  if (!READABLE_VERSIONS.includes(version as StateVersion)) return null
   try {
-    return JSON.parse(b64urlDecode(payload.slice(dot + 1))) as T
+    return {
+      version: version as StateVersion,
+      state: JSON.parse(b64urlDecode(payload.slice(dot + 1))) as T,
+    }
   } catch {
     return null
   }
