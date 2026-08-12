@@ -355,6 +355,15 @@ export function ChipCalculator() {
   const [showHowTo, setShowHowTo] = useState(false)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<'code' | 'link' | null>(null)
+  const [confirmRotate, setConfirmRotate] = useState(false)
+  const [rotating, setRotating] = useState(false)
+
+  const handleRotate = async () => {
+    setRotating(true)
+    const issued = await room.rotateCode()
+    setRotating(false)
+    if (issued) setConfirmRotate(false)
+  }
 
   const copyText = async (text: string, kind: 'code' | 'link') => {
     try {
@@ -797,6 +806,35 @@ export function ChipCalculator() {
                     >
                       {formatCode(room.code)}
                     </button>
+                    {access === 'host' &&
+                      (confirmRotate ? (
+                        <div className="rotate-confirm">
+                          <p>
+                            新しいコードを発行します。
+                            <strong>いま参加している全員がコード入力に戻る</strong>
+                            ので、新しいコードを伝え直してください。
+                          </p>
+                          <div className="rotate-buttons">
+                            <button
+                              className="rotate-cancel"
+                              onClick={() => setConfirmRotate(false)}
+                            >
+                              やめる
+                            </button>
+                            <button
+                              className="rotate-ok"
+                              disabled={rotating}
+                              onClick={() => void handleRotate()}
+                            >
+                              {rotating ? '作り直し中…' : '作り直す'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button className="share-text-btn" onClick={() => setConfirmRotate(true)}>
+                          コードを作り直す（今のコードを無効にする）
+                        </button>
+                      ))}
                   </>
                 )}
                 <div className="share-code-label">参加リンク（Discord に投稿済み）</div>
@@ -810,6 +848,12 @@ export function ChipCalculator() {
                 {(joined.length > 0 || waiting.length > 0) && (
                   <>
                     <div className="share-divider">参加者</div>
+                    {access === 'host' && (
+                      <p className="member-hint">
+                        退出させても、その人が知っているコードは有効なままです。
+                        本当に締め出すにはコードを作り直してください。
+                      </p>
+                    )}
                     <ul className="member-list">
                       {joined.map(({ id, member }) => (
                         <li key={id} className="member-row">

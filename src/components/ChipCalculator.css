@@ -954,3 +954,65 @@
 .share-code-big:active {
   opacity: 0.8;
 }
+
+/* ------------------------------------------------------- Code rotation */
+
+.member-hint {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  color: #888;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.rotate-confirm {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(231, 76, 60, 0.1);
+  border: 1px solid rgba(231, 76, 60, 0.35);
+}
+
+.rotate-confirm p {
+  margin: 0 0 12px;
+  font-size: 0.75rem;
+  color: #ddd;
+  line-height: 1.7;
+  text-align: left;
+}
+
+.rotate-confirm strong {
+  color: #e74c3c;
+}
+
+.rotate-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.rotate-cancel,
+.rotate-ok {
+  flex: 1;
+  padding: 9px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.rotate-cancel {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #ccc;
+}
+
+.rotate-ok {
+  border: none;
+  background: #e74c3c;
+  color: white;
+  font-weight: 600;
+}
+
+.rotate-ok:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

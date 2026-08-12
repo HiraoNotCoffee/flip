@@ -345,6 +345,59 @@ export function useDiscordRoom<T extends Doc>({
     [storageKey, codeStorageKey]
   )
 
+  /**
+   * コードを作り直す。中身は保ったまま、新しいコードで暗号化し直す。
+   *
+   * 古いコードを知っている端末は次の同期で復号に失敗し、コード入力待ちに戻る。
+   * 「退出させる」だけでは相手の手元のコードは無効にならないので、本当に締め出す
+   * にはこれを使う。読み込み→復号→書き込みの順なので、古いコードの端末が
+   * 溜めていた変更で上書きしてしまうことはない（復号の時点で止まる）。
+   */
+  const rotateCode = useCallback(async (): Promise<string | null> => {
+    if (!room) return null
+    setError(null)
+    try {
+      const content = await readRoomMessage(room)
+      const found = extractState<SealedBox | T>(content)
+      if (!found) {
+        throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
+      }
+
+      let doc: T
+      if (found.version === 'v1') {
+        doc = found.state as T
+      } else {
+        const box = found.state as SealedBox
+        const current = codeRef.current
+        if (!current) throw new WrongCodeError()
+        doc = await open<T>(box, await keyFor(current, saltOf(box)))
+      }
+
+      // 送りそびれている自分の変更があれば一緒に載せる
+      const pending = { ...overrides.current }
+      if (Object.keys(pending).length > 0) doc = applyPatch(doc, pending) as T
+
+      const newCode = generateCode()
+      const salt = randomSalt()
+      keyRef.current = null
+      await writeRoomMessage(room, await composeMessage(doc, room, newCode, salt))
+
+      overrides.current = {}
+      localStorage.setItem(
+        codeStorageKey,
+        JSON.stringify({ messageId: room.messageId, code: newCode })
+      )
+      setCode(newCode)
+      codeRef.current = newCode
+      setStatus('live')
+      setLastSyncAt(Date.now())
+      return newCode
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      return null
+    }
+  }, [room, composeMessage, keyFor, codeStorageKey])
+
   /** コードを入れて中身を開く。合っているかは次の同期で分かる。 */
   const unlock = useCallback(
     (input: string) => {
@@ -396,6 +449,7 @@ export function useDiscordRoom<T extends Doc>({
     start,
     join,
     unlock,
+    rotateCode,
     leave,
     forgetWebhook,
   }
