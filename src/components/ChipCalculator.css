@@ -439,3 +439,236 @@
 .confirm-ok:active {
   opacity: 0.8;
 }
+
+/* ---------------------------------------------------------------- Sharing */
+
+.chip-share-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chip-share-bar.shared {
+  background: rgba(88, 101, 242, 0.1);
+  border: 1px solid rgba(88, 101, 242, 0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.share-status {
+  font-size: 0.78rem;
+  color: #7d8cf5;
+  white-space: nowrap;
+}
+
+.share-status::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.share-status-connecting {
+  color: #f1c40f;
+}
+
+.share-status-error {
+  color: #e74c3c;
+}
+
+.share-open-btn {
+  margin-left: auto;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.share-open-btn.primary {
+  margin-left: 0;
+  width: 100%;
+  border: none;
+  background: #5865f2;
+  color: white;
+  font-weight: 600;
+}
+
+.share-open-btn:active {
+  opacity: 0.8;
+}
+
+.share-error-inline,
+.share-error {
+  font-size: 0.8rem;
+  color: #e74c3c;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.share-modal {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 24px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.share-modal h3 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  color: #eee;
+}
+
+.share-note {
+  margin: 0 0 16px;
+  font-size: 0.8rem;
+  color: #aaa;
+  line-height: 1.7;
+  text-align: left;
+}
+
+.share-warning {
+  margin: 14px 0 0;
+  font-size: 0.72rem;
+  color: #888;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.share-link-box {
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9aa0a6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  word-break: break-all;
+  text-align: left;
+  margin-bottom: 12px;
+  max-height: 72px;
+  overflow: hidden;
+}
+
+.share-webhook-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.8rem;
+}
+
+.share-webhook-input:focus {
+  outline: none;
+  border-color: #5865f2;
+}
+
+.share-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.share-actions button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #eee;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.share-create-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: #5865f2;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.share-create-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.share-text-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: #8b93a7;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.share-howto {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  text-align: left;
+  font-size: 0.75rem;
+  color: #aaa;
+  line-height: 1.9;
+}
+
+.share-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  font-size: 0.75rem;
+  color: #777;
+}
+
+.share-divider::before,
+.share-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.share-leave-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  background: transparent;
+  color: #e74c3c;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.share-close-btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
