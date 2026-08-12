@@ -672,3 +672,229 @@
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+/* --------------------------------------------------- Join gate / approval */
+
+.gate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 40px;
+  padding: 32px 24px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.gate-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #eee;
+}
+
+.gate-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #aaa;
+  line-height: 1.8;
+}
+
+.gate-note strong {
+  color: #eee;
+}
+
+.gate-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #5865f2;
+  animation: gate-spin 0.9s linear infinite;
+}
+
+@keyframes gate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.gate-name-input {
+  width: 100%;
+  max-width: 260px;
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.gate-name-input:focus {
+  outline: none;
+  border-color: #5865f2;
+}
+
+.gate-submit-btn {
+  width: 100%;
+  max-width: 260px;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: #5865f2;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gate-submit-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.gate-cancel-btn {
+  margin-top: 4px;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: #8b93a7;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ホストに出る参加リクエスト */
+.requests-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(241, 196, 15, 0.1);
+  border: 1px solid rgba(241, 196, 15, 0.4);
+}
+
+.requests-card h2 {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #f1c40f;
+  letter-spacing: 0.5px;
+}
+
+.request-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.request-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  color: #eee;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.request-approve,
+.request-deny {
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.request-approve {
+  border: none;
+  background: #2ecc71;
+  color: #10241a;
+  font-weight: 700;
+}
+
+.request-deny {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: #aaa;
+}
+
+/* 共有設定の参加者リスト */
+.member-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.member-row.pending {
+  background: rgba(241, 196, 15, 0.1);
+}
+
+.member-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: #eee;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-tag {
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(88, 101, 242, 0.3);
+  color: #aab2ff;
+  font-size: 0.62rem;
+  vertical-align: middle;
+}
+
+.member-tag.self {
+  background: rgba(255, 255, 255, 0.12);
+  color: #bbb;
+}
+
+.member-tag.waiting {
+  background: rgba(241, 196, 15, 0.25);
+  color: #f1c40f;
+}
+
+.member-kick,
+.member-approve {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.member-kick {
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  background: transparent;
+  color: #e74c3c;
+}
+
+.member-approve {
+  border: none;
+  background: #2ecc71;
+  color: #10241a;
+  font-weight: 700;
+}

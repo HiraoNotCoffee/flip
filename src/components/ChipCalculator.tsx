@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useDiscordRoom } from '../hooks/useDiscordRoom'
 import { roomRefFromHash } from '../utils/discordSync'
+import { getClientId } from '../utils/clientId'
+import {
+  accessOf,
+  approvedMembers,
+  pendingMembers,
+  withMember,
+  withoutMember,
+  type Member,
+} from '../utils/roomMembers'
 import type { Doc } from '../utils/docDiff'
 import './ChipCalculator.css'
 
@@ -16,11 +25,17 @@ interface ChipData {
   buyInYen: number
   rake: number          // レーキ（チップ単位）
   players: ChipPlayer[]
+  /** 共有中のみ。ルームを作った端末のID。 */
+  hostId?: string
+  /** 共有中のみ。参加者と承認状態。 */
+  members?: Record<string, Member>
 }
 
 const STORAGE_KEY = 'chip-calculator-data'
 const ROOM_STORAGE_KEY = 'chip-calculator-room'
 const WEBHOOK_STORAGE_KEY = 'chip-calculator-webhook'
+/** 共有に参加する前の自分のデータ。共有をやめたら書き戻す。 */
+const BACKUP_STORAGE_KEY = 'chip-calculator-backup'
 
 const defaultData: ChipData = {
   chipsPer100BB: 30000,
@@ -92,6 +107,8 @@ interface ChipDoc extends Doc {
   buyInYen: number
   rake: number
   players?: Record<string, { name: string; rebuyCount: number; finalChips: number; order: number }>
+  hostId?: string
+  members?: Record<string, Member>
 }
 
 function toDoc(data: ChipData): ChipDoc {
@@ -104,12 +121,29 @@ function toDoc(data: ChipData): ChipDoc {
       order: index,
     }
   })
-  return {
+  const doc: ChipDoc = {
     chipsPer100BB: data.chipsPer100BB,
     buyInYen: data.buyInYen,
     rake: data.rake,
     players,
   }
+  if (data.hostId) doc.hostId = data.hostId
+  if (data.members) doc.members = { ...data.members }
+  return doc
+}
+
+function normalizeMembers(raw: ChipDoc['members']): Record<string, Member> | undefined {
+  if (!raw) return undefined
+  const out: Record<string, Member> = {}
+  for (const [id, m] of Object.entries(raw)) {
+    if (!m || typeof m.name !== 'string') continue
+    const status =
+      m.status === 'approved' || m.status === 'denied' || m.status === 'pending'
+        ? m.status
+        : 'pending'
+    out[id] = { name: m.name, status, at: Number(m.at ?? 0) }
+  }
+  return out
 }
 
 function fromDoc(doc: ChipDoc): ChipData {
@@ -129,6 +163,8 @@ function fromDoc(doc: ChipDoc): ChipData {
     buyInYen: Number(doc.buyInYen ?? defaultData.buyInYen),
     rake: Number(doc.rake ?? 0),
     players,
+    hostId: typeof doc.hostId === 'string' ? doc.hostId : undefined,
+    members: normalizeMembers(doc.members),
   }
 }
 
@@ -151,9 +187,10 @@ function renderDiscordMessage(doc: ChipDoc, joinUrl: string): string {
       const pnl = Math.round(calcPnl(data, p))
       const sign = pnl > 0 ? '+' : pnl < 0 ? '−' : '±'
       const mark = pnl > 0 ? '🟢' : pnl < 0 ? '🔴' : '⚪'
+      // `-#`（小文字装飾）は行頭でしか効かないので、行の途中では使わない
       lines.push(
         `${mark} **${p.name || '(名無し)'}** ${sign}¥${Math.abs(pnl).toLocaleString()}` +
-          ` -# (${p.rebuyCount}バイイン / ${p.finalChips.toLocaleString()} chips)`
+          ` (${p.rebuyCount}バイイン / ${p.finalChips.toLocaleString()} chips)`
       )
     }
 
@@ -178,6 +215,15 @@ function renderDiscordMessage(doc: ChipDoc, joinUrl: string): string {
         )
       }
     }
+  }
+
+  const waiting = pendingMembers(doc)
+  if (waiting.length > 0) {
+    lines.push('')
+    lines.push(
+      `🙋 **参加リクエスト** — ${waiting.map(w => w.member.name).join('、')}` +
+        `（ホストがアプリで承認してください）`
+    )
   }
 
   lines.push('')
@@ -223,13 +269,35 @@ export function ChipCalculator() {
     saveData(data)
   }, [data])
 
-  // 共有リンク（#dc=...）で開かれたら、その共有に参加する
+  // 共有リンク（#dc=...）で開かれたら、その共有に参加する。
+  // 参加するとルームの内容で上書きされるので、その前に自分のデータを退避しておく。
+  //
+  // アプリを開いたままリンクをタップした場合はハッシュが変わるだけでページが
+  // 再読み込みされないので、hashchange も拾う必要がある。
   const joinRoom = room.join
   useEffect(() => {
-    const ref = roomRefFromHash(window.location.hash)
-    if (!ref) return
-    window.history.replaceState(null, '', window.location.pathname + window.location.search)
-    void joinRoom(ref)
+    const joinFromHash = () => {
+      const ref = roomRefFromHash(window.location.hash)
+      if (!ref) return
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+      // すでに同じルームにいるなら入り直さない（退避データを潰さないため）
+      try {
+        const current = localStorage.getItem(ROOM_STORAGE_KEY)
+        if (current && (JSON.parse(current) as { messageId?: string }).messageId === ref.messageId) {
+          return
+        }
+      } catch {
+        // ignore
+      }
+
+      localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(dataRef.current))
+      void joinRoom(ref)
+    }
+
+    joinFromHash()
+    window.addEventListener('hashchange', joinFromHash)
+    return () => window.removeEventListener('hashchange', joinFromHash)
   }, [joinRoom])
 
   const update = useCallback(
@@ -266,13 +334,64 @@ export function ChipCalculator() {
   const [confirmReset, setConfirmReset] = useState(false)
 
   const handleReset = () => {
-    mutate(() => ({ ...defaultData, players: [] }))
+    // 参加者と承認状態はルームそのものなので、数字のリセットでは消さない
+    mutate(prev => ({
+      ...defaultData,
+      players: [],
+      hostId: prev.hostId,
+      members: prev.members,
+    }))
     setConfirmReset(false)
+  }
+
+  // --- 参加と承認 -------------------------------------------------------------
+  const myId = getClientId()
+  const access = accessOf(data, myId)
+  const inRoom = room.room !== null
+  const synced = room.lastSyncAt !== null
+  /** 共有中に自分がまだ画面を見られない状態か。 */
+  const gate: 'none' | 'connecting' | 'form' | 'pending' | 'denied' = !inRoom
+    ? 'none'
+    : !synced
+      ? 'connecting'
+      : access === 'host' || access === 'approved'
+        ? 'none'
+        : access === 'pending'
+          ? 'pending'
+          : access === 'denied'
+            ? 'denied'
+            : 'form'
+
+  const [nameInput, setNameInput] = useState('')
+  const waiting = pendingMembers(data)
+  const joined = approvedMembers(data)
+
+  const requestJoin = () => {
+    const name = nameInput.trim()
+    if (!name) return
+    mutate(prev => ({
+      ...prev,
+      members: withMember(prev, myId, { name, status: 'pending', at: Date.now() }),
+    }))
+    setNameInput('')
+  }
+
+  const setMemberStatus = (id: string, status: Member['status']) => {
+    mutate(prev => {
+      const current = prev.members?.[id]
+      if (!current) return prev
+      return { ...prev, members: withMember(prev, id, { ...current, status }) }
+    })
+  }
+
+  const removeMember = (id: string) => {
+    mutate(prev => ({ ...prev, members: withoutMember(prev, id) }))
   }
 
   // --- 共有UI ---------------------------------------------------------------
   const [shareOpen, setShareOpen] = useState(false)
   const [webhookInput, setWebhookInput] = useState('')
+  const [hostNameInput, setHostNameInput] = useState('')
   const [showHowTo, setShowHowTo] = useState(false)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -289,6 +408,13 @@ export function ChipCalculator() {
 
   const handleStart = async (url: string) => {
     setBusy(true)
+    // 自分をホスト（承認済み）として登録してから投稿する
+    const hostName = hostNameInput.trim() || 'ホスト'
+    mutate(prev => ({
+      ...prev,
+      hostId: myId,
+      members: { [myId]: { name: hostName, status: 'approved', at: Date.now() } },
+    }))
     const ok = await room.start(url)
     setBusy(false)
     if (ok) {
@@ -298,7 +424,21 @@ export function ChipCalculator() {
   }
 
   const handleLeave = () => {
+    const wasGated = gate !== 'none'
     room.leave()
+    if (wasGated) {
+      // まだ画面を見られていない＝ルームの数字は自分のものではないので、参加前に戻す
+      let restored: ChipData = { ...defaultData, players: [] }
+      try {
+        const raw = localStorage.getItem(BACKUP_STORAGE_KEY)
+        if (raw) restored = JSON.parse(raw) as ChipData
+      } catch {
+        // ignore
+      }
+      dataRef.current = restored
+      setData(restored)
+    }
+    localStorage.removeItem(BACKUP_STORAGE_KEY)
     setShareOpen(false)
   }
 
@@ -347,6 +487,96 @@ export function ChipCalculator() {
         )}
       </div>
       {room.room && room.error && <div className="share-error-inline">{room.error}</div>}
+
+      {/* 承認されるまでは中身を出さない */}
+      {gate !== 'none' && (
+        <div className="gate-card">
+          {gate === 'connecting' && (
+            <>
+              <div className="gate-spinner" />
+              <h3>共有に接続しています…</h3>
+            </>
+          )}
+
+          {gate === 'form' && (
+            <>
+              <h3>参加を申請する</h3>
+              <p className="gate-note">
+                お名前を入力して申請してください。ホストが承認すると画面が見られます。
+              </p>
+              <input
+                className="gate-name-input"
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') requestJoin()
+                }}
+                placeholder="お名前"
+                maxLength={20}
+                autoFocus
+              />
+              <button
+                className="gate-submit-btn"
+                disabled={!nameInput.trim()}
+                onClick={requestJoin}
+              >
+                参加を申請
+              </button>
+            </>
+          )}
+
+          {gate === 'pending' && (
+            <>
+              <div className="gate-spinner" />
+              <h3>承認を待っています</h3>
+              <p className="gate-note">
+                <strong>{data.members?.[myId]?.name}</strong> として申請しました。
+                <br />
+                ホストが承認するとこの画面が切り替わります。
+              </p>
+            </>
+          )}
+
+          {gate === 'denied' && (
+            <>
+              <h3>参加が承認されませんでした</h3>
+              <p className="gate-note">ホストに確認のうえ、もう一度申請できます。</p>
+              <button
+                className="gate-submit-btn"
+                onClick={() => setMemberStatus(myId, 'pending')}
+              >
+                もう一度申請する
+              </button>
+            </>
+          )}
+
+          {gate !== 'connecting' && (
+            <button className="gate-cancel-btn" onClick={handleLeave}>
+              参加をやめる
+            </button>
+          )}
+        </div>
+      )}
+
+      {gate === 'none' && (
+        <>
+      {/* 参加リクエスト（ホストだけに見える） */}
+      {access === 'host' && waiting.length > 0 && (
+        <div className="requests-card">
+          <h2>参加リクエスト（{waiting.length}）</h2>
+          {waiting.map(({ id, member }) => (
+            <div key={id} className="request-row">
+              <span className="request-name">{member.name}</span>
+              <button className="request-deny" onClick={() => setMemberStatus(id, 'denied')}>
+                拒否
+              </button>
+              <button className="request-approve" onClick={() => setMemberStatus(id, 'approved')}>
+                承認
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Settings */}
       <div className="chip-settings">
@@ -531,6 +761,8 @@ export function ChipCalculator() {
           Reset
         </button>
       </div>
+        </>
+      )}
 
       {/* Confirm Reset Modal */}
       {confirmReset && (
@@ -567,6 +799,45 @@ export function ChipCalculator() {
                     {copied ? 'コピーしました' : '参加リンクをコピー'}
                   </button>
                 </div>
+
+                {(joined.length > 0 || waiting.length > 0) && (
+                  <>
+                    <div className="share-divider">参加者</div>
+                    <ul className="member-list">
+                      {joined.map(({ id, member }) => (
+                        <li key={id} className="member-row">
+                          <span className="member-name">
+                            {member.name}
+                            {id === data.hostId && <span className="member-tag">ホスト</span>}
+                            {id === myId && <span className="member-tag self">自分</span>}
+                          </span>
+                          {access === 'host' && id !== myId && (
+                            <button className="member-kick" onClick={() => removeMember(id)}>
+                              退出させる
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                      {waiting.map(({ id, member }) => (
+                        <li key={id} className="member-row pending">
+                          <span className="member-name">
+                            {member.name}
+                            <span className="member-tag waiting">承認待ち</span>
+                          </span>
+                          {access === 'host' && (
+                            <button
+                              className="member-approve"
+                              onClick={() => setMemberStatus(id, 'approved')}
+                            >
+                              承認
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+
                 <div className="share-divider" />
                 <button className="share-leave-btn" onClick={handleLeave}>
                   共有をやめる（自分だけ・データは手元に残ります）
@@ -576,8 +847,16 @@ export function ChipCalculator() {
               <>
                 <p className="share-note">
                   Discord のチャンネルに1通メッセージを投稿し、それを全員で読み書きします。
-                  サーバーもアカウント連携も不要です。
+                  リンクから来た人はあなたが承認するまで中身を見られません。
                 </p>
+
+                <input
+                  className="share-webhook-input"
+                  value={hostNameInput}
+                  onChange={e => setHostNameInput(e.target.value)}
+                  placeholder="あなたの名前（省略可）"
+                  maxLength={20}
+                />
 
                 {room.savedWebhookUrl && (
                   <>

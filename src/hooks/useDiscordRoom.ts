@@ -88,6 +88,7 @@ export function useDiscordRoom<T extends Doc>({
 
   // 同期ループ
   useEffect(() => {
+    setLastSyncAt(null)
     if (!room) {
       setStatus('idle')
       overrides.current = {}

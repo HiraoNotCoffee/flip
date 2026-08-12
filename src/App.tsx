@@ -46,6 +46,15 @@ function App() {
     localStorage.setItem('flip-app-page', page)
   }, [page])
 
+  // アプリを開いたまま共有リンクをタップされた場合（再読み込みは起きない）
+  useEffect(() => {
+    const onHashChange = () => {
+      if (/[#&]dc=/.test(window.location.hash)) setPage('chip')
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
   // Track which cards have been dealt/revealed (for animations)
   const [dealtCards, setDealtCards] = useState<number>(0)
   const [revealedBoardCards, setRevealedBoardCards] = useState<number>(0)
