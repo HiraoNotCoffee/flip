@@ -125,7 +125,7 @@ export function embedState(readable: string, payload: string): string {
   // 読み物部分を削ってでも状態は必ず載せる（状態が欠けると同期できないため）
   if (line.length > MESSAGE_LIMIT) {
     throw new DiscordSyncError(
-      '人数が多すぎて Discord の1メッセージに収まりません',
+      '記録が多すぎて1回分に収まりません',
       'too-long'
     )
   }
@@ -172,7 +172,7 @@ async function request(
   try {
     response = await fetch(url, init)
   } catch {
-    throw new DiscordSyncError('Discord に接続できませんでした（通信を確認してください）', 'network')
+    throw new DiscordSyncError('共有先に接続できませんでした（通信を確認してください）', 'network')
   }
 
   if (response.ok) {
@@ -182,22 +182,22 @@ async function request(
   if (response.status === 429) {
     const body = (await response.json().catch(() => ({}))) as { retry_after?: number }
     const retryAfterMs = Math.ceil((body.retry_after ?? 1) * 1000)
-    throw new DiscordSyncError('Discord の制限中です（自動で再開します）', 'rate-limit', retryAfterMs)
+    throw new DiscordSyncError('混み合っています（自動で再開します）', 'rate-limit', retryAfterMs)
   }
   if (response.status === 404) {
     throw new DiscordSyncError(notFoundMessage, 'not-found')
   }
   if (response.status === 401 || response.status === 403) {
     throw new DiscordSyncError(
-      'ウェブフックが拒否されました（URLが違うか、削除された可能性）',
+      '共有先に拒否されました（設定が変わったか、削除された可能性）',
       'unauthorized'
     )
   }
-  throw new DiscordSyncError(`Discord エラー (${response.status})`, 'other')
+  throw new DiscordSyncError(`共有先のエラー (${response.status})`, 'other')
 }
 
-const WEBHOOK_GONE = 'このウェブフックが見つかりません（URLが違うか、Discord 側で削除された可能性）'
-const MESSAGE_GONE = '共有メッセージが見つかりません（Discord 側で削除された可能性）'
+const WEBHOOK_GONE = '共有先が見つかりません（設定が違うか、削除された可能性）'
+const MESSAGE_GONE = '共有データが見つかりません（削除された可能性）'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 

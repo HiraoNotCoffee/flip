@@ -544,7 +544,7 @@ export function ChipCalculator() {
           <>
             <span className={`share-status share-status-${room.status}`}>
               {room.status === 'live'
-                ? `Discord と同期中${lastSyncLabel ? ` ・ ${lastSyncLabel}` : ''}`
+                ? `同期中${lastSyncLabel ? ` ・ ${lastSyncLabel}` : ''}`
                 : room.status === 'locked'
                   ? 'コード待ち'
                   : room.status === 'error'
@@ -557,7 +557,7 @@ export function ChipCalculator() {
           </>
         ) : (
           <button className="share-open-btn primary" onClick={() => setShareOpen(true)}>
-            Discord でみんなと共有
+            みんなと共有
           </button>
         )}
       </div>
@@ -990,12 +990,12 @@ export function ChipCalculator() {
       {shareOpen && (
         <div className="confirm-overlay" onClick={() => setShareOpen(false)}>
           <div className="share-modal" onClick={e => e.stopPropagation()}>
-            <h3>Discord でみんなと共有</h3>
+            <h3>みんなと共有</h3>
 
             {room.room ? (
               <>
                 <p className="share-note">
-                  Discord に貼られたリンクを<strong>タップするだけ</strong>で参加できます。
+                  共有されたリンクを<strong>タップするだけ</strong>で参加できます。
                   コードはリンクに入っているので、伝える必要はありません。
                 </p>
                 {room.code && (
@@ -1038,7 +1038,7 @@ export function ChipCalculator() {
                       ))}
                   </>
                 )}
-                <div className="share-code-label">参加リンク（Discord に投稿済み）</div>
+                <div className="share-code-label">参加リンク（共有先に投稿済み）</div>
                 <div className="share-link-box">{room.joinUrl}</div>
                 <div className="share-actions">
                   <button onClick={() => void copyText(room.joinUrl, 'link')}>
@@ -1054,9 +1054,9 @@ export function ChipCalculator() {
                     : 'コードなしのリンクをコピー（コードは別途伝える）'}
                 </button>
                 <p className="share-warning">
-                  Discord に貼ってあるリンクには<strong>コードが入っています</strong>。
+                  投稿されたリンクには<strong>コードが入っています</strong>。
                   タップするだけで参加できますが、そのリンクを見られる人は中身も見られます。
-                  チャンネル外に流れたくない場合は、上の「コードなしのリンク」を配って
+                  外に流れたくない場合は、上の「コードなしのリンク」を配って
                   コードは口頭で伝えてください。
                 </p>
 
@@ -1112,8 +1112,8 @@ export function ChipCalculator() {
             ) : (
               <>
                 <p className="share-note">
-                  Discord のチャンネルに1通メッセージを投稿し、それを全員で読み書きします。
-                  リンクから来た人はあなたが承認するまで中身を見られません。
+                  参加リンクを1つ発行します。リンクから来た人は、あなたが承認するまで
+                  中身を見られません。
                 </p>
 
                 <input
@@ -1125,52 +1125,49 @@ export function ChipCalculator() {
                 />
 
                 {room.savedWebhookUrl && (
+                  <button
+                    className="share-create-btn"
+                    disabled={busy}
+                    onClick={() => void handleStart(room.savedWebhookUrl)}
+                  >
+                    {busy ? '準備中…' : '共有を開始'}
+                  </button>
+                )}
+
+                {/* 共有先が用意されていない環境でだけ、手動設定を出す */}
+                {!room.hasBuiltInWebhook && (
                   <>
+                    {room.savedWebhookUrl && <div className="share-divider">または</div>}
+                    <input
+                      className="share-webhook-input"
+                      value={webhookInput}
+                      onChange={e => setWebhookInput(e.target.value)}
+                      placeholder="共有先のURL"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
                     <button
                       className="share-create-btn"
-                      disabled={busy}
-                      onClick={() => void handleStart(room.savedWebhookUrl)}
+                      disabled={busy || !webhookInput.trim()}
+                      onClick={() => void handleStart(webhookInput)}
                     >
-                      {busy ? '投稿中…' : '前回のチャンネルで共有を開始'}
+                      {busy ? '準備中…' : 'この共有先で開始'}
                     </button>
-                    <button className="share-text-btn" onClick={room.forgetWebhook}>
-                      別のチャンネルを使う
+                    <button className="share-text-btn" onClick={() => setShowHowTo(v => !v)}>
+                      共有先のURLとは？ {showHowTo ? '▲' : '▼'}
                     </button>
-                    <div className="share-divider">または</div>
+                    {showHowTo && (
+                      <p className="share-howto-note">
+                        収支データの置き場所です。管理者が用意していれば入力は要りません。
+                        設定されていない場合のみ、ここに貼ってください。
+                      </p>
+                    )}
                   </>
                 )}
 
-                <input
-                  className="share-webhook-input"
-                  value={webhookInput}
-                  onChange={e => setWebhookInput(e.target.value)}
-                  placeholder="https://discord.com/api/webhooks/..."
-                  autoCapitalize="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-                <button
-                  className="share-create-btn"
-                  disabled={busy || !webhookInput.trim()}
-                  onClick={() => void handleStart(webhookInput)}
-                >
-                  {busy ? '投稿中…' : 'このチャンネルで共有を開始'}
-                </button>
-
-                <button className="share-text-btn" onClick={() => setShowHowTo(v => !v)}>
-                  ウェブフックURLの取り方 {showHowTo ? '▲' : '▼'}
-                </button>
-                {showHowTo && (
-                  <ol className="share-howto">
-                    <li>Discord でチャンネル名の横の⚙️（チャンネルの編集）を開く</li>
-                    <li>「連携サービス」→「ウェブフック」→「新しいウェブフック」</li>
-                    <li>「ウェブフックURLをコピー」を押す</li>
-                    <li>コピーしたURLを上の欄に貼る</li>
-                  </ol>
-                )}
                 <p className="share-warning">
-                  ウェブフックURLを知っている人はそのチャンネルに投稿できます。身内の
-                  チャンネルで使ってください。不要になったら Discord 側で削除できます。
+                  参加リンクを知っている人は中身を見られます。身内だけに配ってください。
                 </p>
               </>
             )}

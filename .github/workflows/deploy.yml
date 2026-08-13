@@ -33,6 +33,13 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # 共有の投稿先。GitHub の Settings > Secrets and variables > Actions >
+          # Variables に VITE_DISCORD_WEBHOOK_URL を登録すると、利用者は
+          # 何も設定せずに共有を始められる。
+          # 未登録でもビルドは通り、アプリ側に手入力欄が出るだけ。
+          # 注意: 配信される JavaScript に含まれる＝公開情報になる。
+          VITE_DISCORD_WEBHOOK_URL: ${{ vars.VITE_DISCORD_WEBHOOK_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

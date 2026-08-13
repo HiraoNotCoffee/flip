@@ -1221,3 +1221,11 @@
   font-size: 0.68rem;
   color: #777;
 }
+
+.share-howto-note {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: #999;
+  line-height: 1.7;
+  text-align: left;
+}

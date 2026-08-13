@@ -54,6 +54,16 @@ const JITTER = 0.2
 /** 入力してからみんなに届くまでの待ち（連打をまとめる）。 */
 const FLUSH_DELAY_MS = 600
 
+/**
+ * ビルド時に埋め込む共通の投稿先。設定してあれば、使う側は何も入力しなくてよい。
+ *
+ * 注意: これは配信される JavaScript に含まれる＝公開情報になる。知っている人は
+ * そのチャンネルに投稿できるので、身内用チャンネル向け。荒らされたら
+ * 発行元で削除すれば即無効になる。
+ */
+export const BUILT_IN_WEBHOOK_URL: string =
+  (import.meta.env.VITE_DISCORD_WEBHOOK_URL as string | undefined) ?? ''
+
 function withJitter(ms: number): number {
   return Math.round(ms * (1 - JITTER + Math.random() * JITTER * 2))
 }
@@ -100,7 +110,7 @@ export function useDiscordRoom<T extends Doc>({
     loadCode(codeStorageKey, loadRef(storageKey)?.messageId)
   )
   const [savedWebhookUrl, setSavedWebhookUrl] = useState<string>(
-    () => localStorage.getItem(webhookStorageKey) ?? ''
+    () => localStorage.getItem(webhookStorageKey) ?? BUILT_IN_WEBHOOK_URL
   )
 
   // まだ Discord に送れていない自分の変更（パス→値）
@@ -461,7 +471,7 @@ export function useDiscordRoom<T extends Doc>({
 
   const forgetWebhook = useCallback(() => {
     localStorage.removeItem(webhookStorageKey)
-    setSavedWebhookUrl('')
+    setSavedWebhookUrl(BUILT_IN_WEBHOOK_URL)
   }, [webhookStorageKey])
 
   return {
@@ -470,6 +480,8 @@ export function useDiscordRoom<T extends Doc>({
     error,
     lastSyncAt,
     savedWebhookUrl,
+    /** 共通の投稿先が用意されているか（＝利用者は設定不要か）。 */
+    hasBuiltInWebhook: BUILT_IN_WEBHOOK_URL.length > 0,
     code,
     needsCode: status === 'locked',
     /** コード入り＝タップだけで参加できる。チャンネルにもこれが載る。 */
