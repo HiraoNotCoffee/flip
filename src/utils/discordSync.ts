@@ -76,30 +76,37 @@ function b64urlDecode(encoded: string): string {
 
 // -------------------------------------------------------------- share link
 
-/** 参加リンクに載せる形（webhook id / token / message id）。 */
-export function encodeRoomRef(ref: RoomRef): string {
-  return b64urlEncode(`${ref.id}.${ref.token}.${ref.messageId}`)
+/**
+ * 参加リンクに載せる形（webhook id / token / message id / 任意でコード）。
+ *
+ * コードを入れるとタップだけで参加できるが、そのリンクを見られる人は中身も
+ * 見られるということでもある。コードなしのリンクも作れるようにしてある。
+ */
+export function encodeRoomRef(ref: RoomRef, code?: string): string {
+  const parts = [ref.id, ref.token, ref.messageId]
+  if (code) parts.push(code)
+  return b64urlEncode(parts.join('.'))
 }
 
-export function decodeRoomRef(encoded: string): RoomRef | null {
+export function decodeRoomRef(encoded: string): (RoomRef & { code?: string }) | null {
   try {
     const parts = b64urlDecode(encoded).split('.')
-    if (parts.length !== 3) return null
-    const [id, token, messageId] = parts
+    if (parts.length < 3 || parts.length > 4) return null
+    const [id, token, messageId, code] = parts
     if (!/^\d+$/.test(id) || !token || !/^\d+$/.test(messageId)) return null
-    return { id, token, messageId }
+    return code ? { id, token, messageId, code } : { id, token, messageId }
   } catch {
     return null
   }
 }
 
-export function buildJoinUrl(ref: RoomRef): string {
+export function buildJoinUrl(ref: RoomRef, code?: string): string {
   const base = `${window.location.origin}${window.location.pathname}`
-  return `${base}#dc=${encodeRoomRef(ref)}`
+  return `${base}#dc=${encodeRoomRef(ref, code)}`
 }
 
-/** URL のハッシュから参加情報を取り出す。 */
-export function roomRefFromHash(hash: string): RoomRef | null {
+/** URL のハッシュから参加情報を取り出す。コード入りならそれも返す。 */
+export function roomRefFromHash(hash: string): (RoomRef & { code?: string }) | null {
   const match = /[#&]dc=([A-Za-z0-9_-]+)/.exec(hash)
   return match ? decodeRoomRef(match[1]) : null
 }

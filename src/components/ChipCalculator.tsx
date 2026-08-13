@@ -214,12 +214,12 @@ function linkPlayer(data: ChipData, name: string): { data: ChipData; playerId: s
 function renderDiscordMessage(joinUrl: string): string {
   const lines: string[] = []
   lines.push('## 🃏 チップ計算')
-  lines.push('🔒 中身はコードを知っている人だけが開けます。')
+  lines.push('🔒 中身は暗号化されています。')
   lines.push('')
   lines.push(`-# 更新 <t:${Math.floor(Date.now() / 1000)}:T>`)
   if (joinUrl) {
     lines.push(`▶ アプリで開く: ${joinUrl}`)
-    lines.push('-# 開いたあと、ホストから聞いたコードを入力してください。')
+    lines.push('-# このリンクから開けば、コードの入力は要りません。')
   }
   return lines.join('\n')
 }
@@ -284,7 +284,7 @@ export function ChipCalculator() {
       }
 
       localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(dataRef.current))
-      void joinRoom(ref)
+      void joinRoom(ref, ref.code)
     }
 
     joinFromHash()
@@ -448,7 +448,7 @@ export function ChipCalculator() {
   const [hostNameInput, setHostNameInput] = useState('')
   const [showHowTo, setShowHowTo] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState<'code' | 'link' | null>(null)
+  const [copied, setCopied] = useState<'code' | 'link' | 'link-bare' | null>(null)
   const [confirmRotate, setConfirmRotate] = useState(false)
   const [rotating, setRotating] = useState(false)
 
@@ -459,7 +459,7 @@ export function ChipCalculator() {
     if (issued) setConfirmRotate(false)
   }
 
-  const copyText = async (text: string, kind: 'code' | 'link') => {
+  const copyText = async (text: string, kind: 'code' | 'link' | 'link-bare') => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(kind)
@@ -995,8 +995,8 @@ export function ChipCalculator() {
             {room.room ? (
               <>
                 <p className="share-note">
-                  <strong>リンクとコードの2つ</strong>で共有します。リンクは Discord に貼ってあるので、
-                  コードだけ口頭で伝えてください。リンクだけでは中身は開けません。
+                  Discord に貼られたリンクを<strong>タップするだけ</strong>で参加できます。
+                  コードはリンクに入っているので、伝える必要はありません。
                 </p>
                 {room.code && (
                   <>
@@ -1042,9 +1042,23 @@ export function ChipCalculator() {
                 <div className="share-link-box">{room.joinUrl}</div>
                 <div className="share-actions">
                   <button onClick={() => void copyText(room.joinUrl, 'link')}>
-                    {copied === 'link' ? 'コピーしました' : '参加リンクをコピー'}
+                    {copied === 'link' ? 'コピーしました' : 'リンクをコピー（コード入り）'}
                   </button>
                 </div>
+                <button
+                  className="share-text-btn"
+                  onClick={() => void copyText(room.joinUrlWithoutCode, 'link-bare')}
+                >
+                  {copied === 'link-bare'
+                    ? 'コピーしました'
+                    : 'コードなしのリンクをコピー（コードは別途伝える）'}
+                </button>
+                <p className="share-warning">
+                  Discord に貼ってあるリンクには<strong>コードが入っています</strong>。
+                  タップするだけで参加できますが、そのリンクを見られる人は中身も見られます。
+                  チャンネル外に流れたくない場合は、上の「コードなしのリンク」を配って
+                  コードは口頭で伝えてください。
+                </p>
 
                 {(joined.length > 0 || waiting.length > 0) && (
                   <>

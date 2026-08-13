@@ -137,7 +137,8 @@ export function useDiscordRoom<T extends Doc>({
     async (doc: T, ref: RoomRef, theCode: string, salt: Uint8Array): Promise<string> => {
       const key = await keyFor(theCode, salt)
       const box = await seal(doc, key, salt)
-      return embedState(renderRef.current(buildJoinUrl(ref)), boxToWire(box))
+      // チャンネルに出るリンクはコード入り＝タップだけで参加できる
+      return embedState(renderRef.current(buildJoinUrl(ref, theCode)), boxToWire(box))
     },
     [keyFor]
   )
@@ -329,7 +330,7 @@ export function useDiscordRoom<T extends Doc>({
 
   /** 共有リンクから参加する。中身を読むにはこのあと unlock でコードが要る。 */
   const join = useCallback(
-    async (ref: RoomRef): Promise<boolean> => {
+    async (ref: RoomRef, linkCode?: string): Promise<boolean> => {
       setStatus('connecting')
       setError(null)
       try {
@@ -343,7 +344,15 @@ export function useDiscordRoom<T extends Doc>({
         overrides.current = {}
         lastApplied.current = ''
         keyRef.current = null
-        const known = loadCode(codeStorageKey, ref.messageId)
+        const known = linkCode
+          ? normalizeCode(linkCode)
+          : loadCode(codeStorageKey, ref.messageId)
+        if (known) {
+          localStorage.setItem(
+            codeStorageKey,
+            JSON.stringify({ messageId: ref.messageId, code: known })
+          )
+        }
         setCode(known)
         codeRef.current = known
         setRoom(ref)
@@ -463,7 +472,10 @@ export function useDiscordRoom<T extends Doc>({
     savedWebhookUrl,
     code,
     needsCode: status === 'locked',
-    joinUrl: room ? buildJoinUrl(room) : '',
+    /** コード入り＝タップだけで参加できる。チャンネルにもこれが載る。 */
+    joinUrl: room ? buildJoinUrl(room, code ?? undefined) : '',
+    /** コードなし＝別途コードを伝える必要がある（リンクが流れても中身は守られる）。 */
+    joinUrlWithoutCode: room ? buildJoinUrl(room) : '',
     push,
     start,
     join,

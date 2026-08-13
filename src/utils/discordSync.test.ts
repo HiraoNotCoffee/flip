@@ -45,13 +45,29 @@ describe('share link', () => {
     expect(decodeRoomRef(encodeRoomRef(REF))).toEqual(REF)
   })
 
+  it('carries the code when one is given, so a tap is enough to join', () => {
+    const decoded = decodeRoomRef(encodeRoomRef(REF, 'TBDYE3HN'))
+    expect(decoded).toEqual({ ...REF, code: 'TBDYE3HN' })
+  })
+
+  it('leaves the code out when none is given', () => {
+    expect(decodeRoomRef(encodeRoomRef(REF))?.code).toBeUndefined()
+  })
+
+  it('does not show the code in the clear', () => {
+    // ぱっと見でコードが読めてしまわないこと（base64 なので秘匿ではないが、
+    // チャットに貼られたリンクからコードだけ抜き書きされにくい形にはしておく）
+    expect(encodeRoomRef(REF, 'TBDYE3HN')).not.toContain('TBDYE3HN')
+  })
+
   it('produces a URL-safe payload', () => {
-    expect(encodeRoomRef(REF)).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(encodeRoomRef(REF, 'TBDYE3HN')).toMatch(/^[A-Za-z0-9_-]+$/)
   })
 
   it('reads the reference back out of a hash', () => {
     expect(roomRefFromHash(`#dc=${encodeRoomRef(REF)}`)).toEqual(REF)
     expect(roomRefFromHash(`#page=chip&dc=${encodeRoomRef(REF)}`)).toEqual(REF)
+    expect(roomRefFromHash(`#dc=${encodeRoomRef(REF, 'TBDYE3HN')}`)?.code).toBe('TBDYE3HN')
   })
 
   it('returns null for junk', () => {
