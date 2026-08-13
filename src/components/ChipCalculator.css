@@ -1354,3 +1354,19 @@
   opacity: 0.55;
   cursor: default;
 }
+
+.settlement-how {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  color: #888;
+  line-height: 1.6;
+}
+
+/* 一番勝った人が配る側の行は向きが逆なので色で分ける */
+.settlement-item.payout {
+  background: rgba(52, 152, 219, 0.1);
+}
+
+.settlement-item.payout .settlement-amount {
+  color: #5dade2;
+}

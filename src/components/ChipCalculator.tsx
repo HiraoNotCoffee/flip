@@ -122,6 +122,34 @@ function computeSettlements(data: ChipData) {
   return result
 }
 
+/**
+ * 精算その2「一番勝った人がまとめる」。
+ *
+ * 負けた人は全員、一番勝った人にだけ払う。そのあと一番勝った人が、他の勝った人へ
+ * 配る。1人（＝一番勝った人）とだけやり取りすればいいので、卓上で回しやすい。
+ * チップが合っていない分は一番勝った人のところで吸収される。
+ */
+function computeHubSettlements(data: ChipData) {
+  const ranked = data.players
+    .map(p => ({ name: p.name, amount: Math.round(calcPnl(data, p)) }))
+    .filter(p => p.amount !== 0)
+    .sort((a, b) => b.amount - a.amount)
+
+  const winners = ranked.filter(p => p.amount > 0)
+  const losers = ranked.filter(p => p.amount < 0)
+  if (winners.length === 0 || losers.length === 0) return { hub: null, rows: [] }
+
+  const hub = winners[0]
+  const rows: { from: string; to: string; amount: number }[] = []
+  for (const loser of losers) {
+    rows.push({ from: loser.name, to: hub.name, amount: -loser.amount })
+  }
+  for (const winner of winners.slice(1)) {
+    rows.push({ from: hub.name, to: winner.name, amount: winner.amount })
+  }
+  return { hub: hub.name, rows }
+}
+
 // --- 共有ドキュメント --------------------------------------------------------
 // players は id をキーにしたオブジェクトで持ち、並び順は order で表す。
 // こうすると「Aさんが名前、Bさんがチップ」を同時に触っても差分がぶつからない。
@@ -486,6 +514,13 @@ export function ChipCalculator() {
   /** 場のルール（レート等）はホストが決める。共有中は他の人は触れない。 */
   const settingsLocked = inRoom && access !== 'host'
 
+  /**
+   * 最終チップは本人が入れる。ただし締めるのはホストの仕事なので、
+   * ホストは全員分を直せる（アドオンと違い、増やす操作ではないため）。
+   */
+  const canEditFinalChips = (playerId: string) =>
+    !inRoom || playerId === myPlayerId || access === 'host'
+
   const [historyFor, setHistoryFor] = useState<string | null>(null)
   const unconfirmed = inRoom ? unconfirmedFor(data, myId) : []
   const memberNameOf = (clientId: string) => data.members?.[clientId]?.name ?? '不明'
@@ -616,6 +651,7 @@ export function ChipCalculator() {
     0
   )
   const settlements = computeSettlements(data)
+  const hubSettlements = computeHubSettlements(data)
 
   return (
     <div className="chip-calculator">
@@ -906,6 +942,7 @@ export function ChipCalculator() {
                       })
                     }
                     placeholder="0"
+                    disabled={!canEditFinalChips(player.id)}
                   />
                 </div>
               </div>
@@ -953,13 +990,42 @@ export function ChipCalculator() {
 
           {/* Settlement: who pays whom */}
           <div className="settlement-section">
-            <h3>Settlement</h3>
+            <h3>Settlement 1</h3>
+            <p className="settlement-how">送金の回数がいちばん少なくなる組み合わせ</p>
             {settlements.length === 0 ? (
               <div className="settlement-empty">No transfers needed</div>
             ) : (
               <ul className="settlement-list">
                 {settlements.map((s, idx) => (
                   <li key={idx} className="settlement-item">
+                    <span className="settlement-from">{s.from}</span>
+                    <span className="settlement-arrow">→</span>
+                    <span className="settlement-to">{s.to}</span>
+                    <span className="settlement-amount">
+                      ¥{s.amount.toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="settlement-section">
+            <h3>Settlement 2</h3>
+            <p className="settlement-how">
+              {hubSettlements.hub
+                ? `負けた人は全員 ${hubSettlements.hub} に払い、${hubSettlements.hub} が他の勝った人へ配る`
+                : '一番勝った人がまとめる方法'}
+            </p>
+            {hubSettlements.rows.length === 0 ? (
+              <div className="settlement-empty">No transfers needed</div>
+            ) : (
+              <ul className="settlement-list">
+                {hubSettlements.rows.map((s, idx) => (
+                  <li
+                    key={idx}
+                    className={`settlement-item ${s.from === hubSettlements.hub ? 'payout' : ''}`}
+                  >
                     <span className="settlement-from">{s.from}</span>
                     <span className="settlement-arrow">→</span>
                     <span className="settlement-to">{s.to}</span>
