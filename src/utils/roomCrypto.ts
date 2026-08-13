@@ -94,6 +94,31 @@ export async function deriveKey(code: string, salt: Uint8Array): Promise<CryptoK
   )
 }
 
+// ------------------------------------------------------------------- 圧縮
+// Discord のメッセージは2000文字までしかない。JSON はキー名が繰り返されるので
+// よく縮む（アドオン履歴が伸びても収まるようにするために要る）。
+
+function hasCompression(): boolean {
+  return typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined'
+}
+
+async function streamBytes(
+  bytes: Uint8Array,
+  stream: ReadableWritablePair
+): Promise<Uint8Array<ArrayBuffer>> {
+  const blob = new Blob([bytes as unknown as BlobPart])
+  const buffer = await new Response(blob.stream().pipeThrough(stream)).arrayBuffer()
+  return new Uint8Array(buffer)
+}
+
+async function deflate(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+  return streamBytes(bytes, new CompressionStream('deflate-raw'))
+}
+
+async function inflate(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+  return streamBytes(bytes, new DecompressionStream('deflate-raw'))
+}
+
 /** 暗号文とその復号に要る情報をまとめた入れ物。メッセージにはこれを載せる。 */
 export interface SealedBox {
   /** salt（base64url）。鍵を作り直すのに要るのでメッセージに残す。 */
@@ -102,37 +127,54 @@ export interface SealedBox {
   i: string
   /** 暗号文（base64url） */
   c: string
+  /** 1 なら中身は deflate-raw で圧縮されている。 */
+  z?: 1
 }
 
 export async function seal(value: unknown, key: CryptoKey, salt: Uint8Array): Promise<SealedBox> {
   const iv = new Uint8Array(IV_BYTES)
   crypto.getRandomValues(iv)
-  const plaintext = new TextEncoder().encode(JSON.stringify(value))
+
+  let plaintext = new TextEncoder().encode(JSON.stringify(value))
+  let compressed = false
+  if (hasCompression()) {
+    const packed = await deflate(plaintext)
+    // まれに圧縮で増えることがあるので、小さくなったときだけ使う
+    if (packed.length < plaintext.length) {
+      plaintext = packed
+      compressed = true
+    }
+  }
+
   const cipher = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: iv as unknown as BufferSource },
     key,
     plaintext as unknown as BufferSource
   )
-  return {
+  const box: SealedBox = {
     s: bytesToB64url(salt),
     i: bytesToB64url(iv),
     c: bytesToB64url(new Uint8Array(cipher)),
   }
+  if (compressed) box.z = 1
+  return box
 }
 
 /** 復号する。コードが違えば WrongCodeError（AES-GCM の認証タグが合わない）。 */
 export async function open<T>(box: SealedBox, key: CryptoKey): Promise<T> {
-  let plaintext: ArrayBuffer
+  let plaintext: Uint8Array
   try {
-    plaintext = await crypto.subtle.decrypt(
+    const decrypted = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv: b64urlToBytes(box.i) as unknown as BufferSource },
       key,
       b64urlToBytes(box.c) as unknown as BufferSource
     )
+    plaintext = new Uint8Array(decrypted)
   } catch {
     throw new WrongCodeError()
   }
   try {
+    if (box.z === 1) plaintext = await inflate(plaintext)
     return JSON.parse(new TextDecoder().decode(plaintext)) as T
   } catch {
     throw new WrongCodeError()
@@ -142,4 +184,22 @@ export async function open<T>(box: SealedBox, key: CryptoKey): Promise<T> {
 /** メッセージに載っている箱から salt を取り出す。 */
 export function saltOf(box: SealedBox): Uint8Array {
   return b64urlToBytes(box.s)
+}
+
+// ------------------------------------------------------------- 電文の形
+// 箱の中身はすでに base64url なので、JSON にしてから base64 に掛け直すと
+// それだけで33%太る。区切り文字でつないだ1本の文字列にしておく。
+
+export function boxToWire(box: SealedBox): string {
+  return `${box.z ?? 0}.${box.s}.${box.i}.${box.c}`
+}
+
+export function wireToBox(wire: string): SealedBox | null {
+  const parts = wire.split('.')
+  if (parts.length !== 4) return null
+  const [z, s, i, c] = parts
+  if (!s || !i || !c) return null
+  const box: SealedBox = { s, i, c }
+  if (z === '1') box.z = 1
+  return box
 }

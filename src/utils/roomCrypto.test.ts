@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  boxToWire,
   CODE_LENGTH,
   deriveKey,
   formatCode,
@@ -9,6 +10,7 @@ import {
   randomSalt,
   saltOf,
   seal,
+  wireToBox,
   WrongCodeError,
 } from './roomCrypto'
 
@@ -111,5 +113,34 @@ describe('seal / open', () => {
     // 同じコードでも salt が違えば別の鍵になる
     const otherRoomKey = await deriveKey(code, randomSalt())
     await expect(open(box, otherRoomKey)).rejects.toThrow(WrongCodeError)
+  })
+})
+
+describe('wire format', () => {
+  it('round-trips a box without re-encoding it', async () => {
+    const salt = randomSalt()
+    const key = await deriveKey(generateCode(), salt)
+    const box = await seal({ hello: 'せかい' }, key, salt)
+    const wire = boxToWire(box)
+
+    expect(wire).toContain(box.c)
+    expect(wireToBox(wire)).toEqual(box)
+    expect(await open(wireToBox(wire)!, key)).toEqual({ hello: 'せかい' })
+  })
+
+  it('remembers whether the contents were compressed', async () => {
+    const salt = randomSalt()
+    const key = await deriveKey(generateCode(), salt)
+    // 圧縮が効くだけの繰り返しを含むデータ
+    const box = await seal({ rows: Array.from({ length: 60 }, () => 'あいうえお') }, key, salt)
+    expect(box.z).toBe(1)
+    expect(boxToWire(box).startsWith('1.')).toBe(true)
+    expect(wireToBox(boxToWire(box))?.z).toBe(1)
+  })
+
+  it('rejects malformed wire strings', () => {
+    expect(wireToBox('')).toBeNull()
+    expect(wireToBox('1.a.b')).toBeNull()
+    expect(wireToBox('1..b.c')).toBeNull()
   })
 })

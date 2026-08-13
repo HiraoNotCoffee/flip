@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  decodeLegacyState,
   decodeRoomRef,
   DiscordSyncError,
   embedState,
@@ -61,42 +62,45 @@ describe('share link', () => {
 })
 
 describe('embedState / extractState', () => {
-  const state = { c: 30000, players: { pa: { name: '田中さん', chips: 42000 } } }
+  const payload = '1.c2FsdA.aXY.Y2lwaGVydGV4dA'
 
   it('round-trips through a Discord message body', () => {
-    const message = embedState('🃏 チップ計算\n田中さん +¥12,000', state)
+    const message = embedState('🃏 チップ計算\n🔒 コードが要ります', payload)
     expect(message).toContain('🃏 チップ計算')
-    expect(extractState(message)?.state).toEqual(state)
+    expect(extractState(message)).toEqual({ version: 'v2', payload })
   })
 
   it('survives multi-byte text and newlines in the readable part', () => {
-    const readable = '精算\n山田 → 田中 ¥5,000\n▶ アプリで開く: https://example.com/#dc=abc'
-    expect(extractState(embedState(readable, state))?.state).toEqual(state)
+    const readable = '🔒 中身はコードを知っている人だけ\n▶ アプリで開く: https://example.com/#dc=abc'
+    expect(extractState(embedState(readable, payload))?.payload).toBe(payload)
+  })
+
+  it('does not waste room by encoding the payload a second time', () => {
+    // 箱の中身はすでに base64 なので、そのまま載る（太らない）ことを確かめる
+    expect(embedState('x', payload)).toContain(payload)
   })
 
   it('keeps the message within the Discord limit by trimming the readable part', () => {
-    const message = embedState('あ'.repeat(5000), state)
+    const message = embedState('あ'.repeat(5000), payload)
     expect(message.length).toBeLessThanOrEqual(MESSAGE_LIMIT)
-    expect(extractState(message)?.state).toEqual(state)
+    expect(extractState(message)?.payload).toBe(payload)
   })
 
-  it('throws when even the state alone would not fit', () => {
-    const huge = { players: Object.fromEntries(
-      Array.from({ length: 200 }, (_, i) => [`p${i}`, { name: `プレイヤー${i}`, chips: i }])
-    ) }
-    expect(() => embedState('x', huge)).toThrow(DiscordSyncError)
+  it('throws when even the payload alone would not fit', () => {
+    expect(() => embedState('x', 'A'.repeat(MESSAGE_LIMIT + 1))).toThrow(DiscordSyncError)
   })
 
   it('returns null when the message has no state', () => {
     expect(extractState('ただのメッセージ')).toBeNull()
     expect(extractState('-# ⟨sync⟩ v9.abc')).toBeNull()
-    expect(extractState('-# ⟨sync⟩ v2.!!!not-base64!!!')).toBeNull()
+    expect(extractState('-# ⟨sync⟩ v2.')).toBeNull()
   })
 
   it('reads the last state line when someone quotes an older one', () => {
-    const older = embedState('古い', { c: 1 })
-    const newer = embedState(`${older}\n引用`, { c: 2 })
-    expect(extractState(newer)?.state).toEqual({ c: 2 })
+    const older = embedState('古い', '1.a.b.OLD')
+    const newer = embedState(`${older}
+引用`, '1.a.b.NEW')
+    expect(extractState(newer)?.payload).toBe('1.a.b.NEW')
   })
 })
 
@@ -104,7 +108,14 @@ describe('state version', () => {
   it('still reads pre-encryption (v1) messages so old rooms keep working', () => {
     const json = JSON.stringify({ rake: 7 })
     const b64 = Buffer.from(json, 'utf-8').toString('base64url')
-    const legacy = `## 古いメッセージ\n-# ⟨sync⟩ v1.${b64}`
-    expect(extractState(legacy)).toEqual({ version: 'v1', state: { rake: 7 } })
+    const legacy = `## 古いメッセージ
+-# ⟨sync⟩ v1.${b64}`
+    const found = extractState(legacy)
+    expect(found?.version).toBe('v1')
+    expect(decodeLegacyState(found!.payload)).toEqual({ rake: 7 })
+  })
+
+  it('writes v2 (encrypted) even for a room that was read as v1', () => {
+    expect(extractState(embedState('x', '1.a.b.c'))?.version).toBe('v2')
   })
 })

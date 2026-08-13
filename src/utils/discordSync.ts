@@ -108,11 +108,11 @@ export function roomRefFromHash(hash: string): RoomRef | null {
 
 /**
  * 人が読む本文の末尾に、機械可読な状態を1行だけ足す。
- * state は暗号化済みの箱（SealedBox）でも平文のオブジェクトでもよく、
- * ここでは中身を解釈せず JSON にして base64url で載せるだけ。
+ * payload は改行を含まない不透明な文字列（v2 なら暗号化済みの箱の電文）。
+ * ここでは中身を解釈しない。
  */
-export function embedState(readable: string, state: unknown): string {
-  const line = `${STATE_PREFIX}${STATE_VERSION}.${b64urlEncode(JSON.stringify(state))}`
+export function embedState(readable: string, payload: string): string {
+  const line = `${STATE_PREFIX}${STATE_VERSION}.${payload}`
   const body = `${readable.trimEnd()}\n${line}`
   if (body.length <= MESSAGE_LIMIT) return body
   // 読み物部分を削ってでも状態は必ず載せる（状態が欠けると同期できないため）
@@ -126,20 +126,24 @@ export function embedState(readable: string, state: unknown): string {
   return `${readable.slice(0, room).trimEnd()}\n${line}`
 }
 
-/** メッセージ本文から状態を取り出す。見つからなければ null。 */
-export function extractState<T>(content: string): { version: StateVersion; state: T } | null {
+/** メッセージ本文から状態の電文を取り出す。見つからなければ null。 */
+export function extractState(content: string): { version: StateVersion; payload: string } | null {
   const index = content.lastIndexOf(STATE_PREFIX)
   if (index < 0) return null
-  const payload = content.slice(index + STATE_PREFIX.length).trim()
-  const dot = payload.indexOf('.')
+  const rest = content.slice(index + STATE_PREFIX.length).trim()
+  const dot = rest.indexOf('.')
   if (dot < 0) return null
-  const version = payload.slice(0, dot)
+  const version = rest.slice(0, dot)
   if (!READABLE_VERSIONS.includes(version as StateVersion)) return null
+  const payload = rest.slice(dot + 1)
+  if (!payload) return null
+  return { version: version as StateVersion, payload }
+}
+
+/** v1（暗号化前）のメッセージに入っていた平文をほどく。 */
+export function decodeLegacyState<T>(payload: string): T | null {
   try {
-    return {
-      version: version as StateVersion,
-      state: JSON.parse(b64urlDecode(payload.slice(dot + 1))) as T,
-    }
+    return JSON.parse(b64urlDecode(payload)) as T
   } catch {
     return null
   }

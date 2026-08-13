@@ -13,6 +13,11 @@ export type Member = {
   status: MemberStatus
   /** 申請時刻（Date.now()）。承認待ちの並び順に使う。 */
   at: number
+  /**
+   * この人がどのプレイヤーか（ChipPlayer.id）。承認時に紐づける。
+   * チップの追加は自分の分（＝これ）しかできない。
+   */
+  playerId?: string
 }
 
 /** 参加者情報を持つドキュメントの部分型。 */

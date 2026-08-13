@@ -11,6 +11,20 @@ import {
   withoutMember,
   type Member,
 } from '../utils/roomMembers'
+import {
+  addonHistory,
+  addonsFor,
+  stampToMs,
+  confirmedBy,
+  createAddon,
+  hasConfirmed,
+  hasUnconfirmed,
+  newAddonId,
+  unconfirmedFor,
+  withAddon,
+  withConfirm,
+  type Addon,
+} from '../utils/addons'
 import type { Doc } from '../utils/docDiff'
 import './ChipCalculator.css'
 
@@ -30,6 +44,8 @@ interface ChipData {
   hostId?: string
   /** 共有中のみ。参加者と承認状態。 */
   members?: Record<string, Member>
+  /** 共有中のみ。チップ追加の履歴（誰がいつ何バイイン足したか）。 */
+  addons?: Record<string, Addon>
 }
 
 const STORAGE_KEY = 'chip-calculator-data'
@@ -60,9 +76,15 @@ function saveData(data: ChipData) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
 }
 
-let nextId = Date.now()
+function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+}
+
+// プレイヤーIDもアドオン1件ごとに載るので短くしておく
+let nextId = Date.now() % 46656
 function genId() {
-  return `p${nextId++}`
+  nextId = (nextId + 1) % 46656
+  return `p${nextId.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`
 }
 
 // --- 計算 --------------------------------------------------------------------
@@ -111,6 +133,7 @@ interface ChipDoc extends Doc {
   players?: Record<string, { name: string; rebuyCount: number; finalChips: number; order: number }>
   hostId?: string
   members?: Record<string, Member>
+  addons?: Record<string, Addon>
 }
 
 function toDoc(data: ChipData): ChipDoc {
@@ -131,6 +154,7 @@ function toDoc(data: ChipData): ChipDoc {
   }
   if (data.hostId) doc.hostId = data.hostId
   if (data.members) doc.members = { ...data.members }
+  if (data.addons) doc.addons = { ...data.addons }
   return doc
 }
 
@@ -144,6 +168,7 @@ function normalizeMembers(raw: ChipDoc['members']): Record<string, Member> | und
         ? m.status
         : 'pending'
     out[id] = { name: m.name, status, at: Number(m.at ?? 0) }
+    if (typeof m.playerId === 'string') out[id].playerId = m.playerId
   }
   return out
 }
@@ -167,7 +192,17 @@ function fromDoc(doc: ChipDoc): ChipData {
     players,
     hostId: typeof doc.hostId === 'string' ? doc.hostId : undefined,
     members: normalizeMembers(doc.members),
+    addons: doc.addons ? { ...doc.addons } : undefined,
   }
+}
+
+/** 名前が一致するプレイヤーに紐づける。いなければ新しく作る。 */
+function linkPlayer(data: ChipData, name: string): { data: ChipData; playerId: string } {
+  const wanted = name.trim()
+  const existing = data.players.find(p => p.name.trim() === wanted)
+  if (existing) return { data, playerId: existing.id }
+  const player: ChipPlayer = { id: genId(), name: wanted, rebuyCount: 1, finalChips: 0 }
+  return { data: { ...data, players: [...data.players, player] }, playerId: player.id }
 }
 
 /**
@@ -297,6 +332,7 @@ export function ChipCalculator() {
       players: [],
       hostId: prev.hostId,
       members: prev.members,
+      addons: prev.addons,
     }))
     setConfirmReset(false)
   }
@@ -336,13 +372,71 @@ export function ChipCalculator() {
     setNameInput('')
   }
 
+  /** 承認された人を、同名のプレイヤーに紐づける。いなければ新しく作る。 */
   const setMemberStatus = (id: string, status: Member['status']) => {
     mutate(prev => {
       const current = prev.members?.[id]
       if (!current) return prev
-      return { ...prev, members: withMember(prev, id, { ...current, status }) }
+      if (status !== 'approved' || current.playerId) {
+        return { ...prev, members: withMember(prev, id, { ...current, status }) }
+      }
+      const linked = linkPlayer(prev, current.name)
+      return {
+        ...linked.data,
+        members: withMember(linked.data, id, { ...current, status, playerId: linked.playerId }),
+      }
     })
   }
+
+  /** 自分がどのプレイヤーか。共有していないときは undefined（＝全部触れる）。 */
+  const myPlayerId = data.members?.[myId]?.playerId
+  const linkedPlayerIds = new Set(
+    Object.values(data.members ?? {})
+      .map(m => m.playerId)
+      .filter((v): v is string => !!v)
+  )
+
+  /**
+   * チップの追加はその人自身しかできない。
+   * ただし誰も紐づいていないプレイヤー（アプリを持っていない人など）はホストが面倒を見る。
+   */
+  const canAdjust = (playerId: string) => {
+    if (!inRoom) return true
+    if (playerId === myPlayerId) return true
+    return access === 'host' && !linkedPlayerIds.has(playerId)
+  }
+
+  /** バイインを増減し、その1回を履歴に残す。 */
+  const adjustRebuy = (playerId: string, delta: number) => {
+    mutate(prev => {
+      const at = Date.now()
+      const player = prev.players.find(p => p.id === playerId)
+      if (!player) return prev
+      const nextCount = Math.max(0.5, Math.round((player.rebuyCount + delta) * 2) / 2)
+      const applied = Math.round((nextCount - player.rebuyCount) * 2) / 2
+      if (applied === 0) return prev
+      const next = {
+        ...prev,
+        players: prev.players.map(p =>
+          p.id === playerId ? { ...p, rebuyCount: nextCount } : p
+        ),
+      }
+      // 共有していないときは履歴を残さない（自分用の電卓として使う場合）
+      if (!inRoom) return next
+      return {
+        ...next,
+        addons: withAddon(next, newAddonId(), createAddon(playerId, myId, applied, at)),
+      }
+    })
+  }
+
+  const confirmAddon = (addonId: string) => {
+    mutate(prev => ({ ...prev, addons: withConfirm(prev, addonId, myId, Date.now()) }))
+  }
+
+  const [historyFor, setHistoryFor] = useState<string | null>(null)
+  const unconfirmed = inRoom ? unconfirmedFor(data, myId) : []
+  const memberNameOf = (clientId: string) => data.members?.[clientId]?.name ?? '不明'
 
   const removeMember = (id: string) => {
     mutate(prev => ({ ...prev, members: withoutMember(prev, id) }))
@@ -379,11 +473,21 @@ export function ChipCalculator() {
     setBusy(true)
     // 自分をホスト（承認済み）として登録してから投稿する
     const hostName = hostNameInput.trim() || 'ホスト'
-    mutate(prev => ({
-      ...prev,
-      hostId: myId,
-      members: { [myId]: { name: hostName, status: 'approved', at: Date.now() } },
-    }))
+    mutate(prev => {
+      const linked = linkPlayer(prev, hostName)
+      return {
+        ...linked.data,
+        hostId: myId,
+        members: {
+          [myId]: {
+            name: hostName,
+            status: 'approved',
+            at: Date.now(),
+            playerId: linked.playerId,
+          },
+        },
+      }
+    })
     const issued = await room.start(url)
     setBusy(false)
     if (issued) {
@@ -582,6 +686,19 @@ export function ChipCalculator() {
         </div>
       )}
 
+      {/* 誰かがチップを増やした、というお知らせ */}
+      {unconfirmed.length > 0 && (
+        <div className="addon-alert">
+          <span className="addon-alert-mark">!</span>
+          <span className="addon-alert-text">
+            チップの追加が {unconfirmed.length} 件あります（未確認）
+          </span>
+          <button className="addon-alert-btn" onClick={() => setHistoryFor('*')}>
+            確認する
+          </button>
+        </div>
+      )}
+
       {/* Settings */}
       <div className="chip-settings">
         <h2>Settings</h2>
@@ -640,7 +757,19 @@ export function ChipCalculator() {
                   className="player-name-input"
                   value={player.name}
                   onChange={e => updatePlayer(player.id, { name: e.target.value })}
+                  maxLength={20}
                 />
+                {inRoom && (
+                  <button
+                    className={`player-history-btn ${
+                      hasUnconfirmed(data, player.id, myId) ? 'alert' : ''
+                    }`}
+                    onClick={() => setHistoryFor(player.id)}
+                    title="チップ追加の履歴"
+                  >
+                    {hasUnconfirmed(data, player.id, myId) ? '!' : '履歴'}
+                  </button>
+                )}
                 <button
                   className="remove-player-btn"
                   onClick={() => removePlayer(player.id)}
@@ -655,27 +784,23 @@ export function ChipCalculator() {
                   <div className="rebuy-control">
                     <button
                       className="rebuy-btn"
-                      disabled={player.rebuyCount <= 0.5}
-                      onClick={() =>
-                        updatePlayer(player.id, {
-                          rebuyCount: Math.max(0.5, player.rebuyCount - 0.5),
-                        })
-                      }
+                      disabled={player.rebuyCount <= 0.5 || !canAdjust(player.id)}
+                      onClick={() => adjustRebuy(player.id, -0.5)}
                     >
                       −
                     </button>
                     <span className="rebuy-count">{player.rebuyCount}</span>
                     <button
                       className="rebuy-btn"
-                      onClick={() =>
-                        updatePlayer(player.id, {
-                          rebuyCount: player.rebuyCount + 0.5,
-                        })
-                      }
+                      disabled={!canAdjust(player.id)}
+                      onClick={() => adjustRebuy(player.id, 0.5)}
                     >
                       +
                     </button>
                   </div>
+                  {inRoom && !canAdjust(player.id) && (
+                    <span className="rebuy-locked">本人だけが増やせます</span>
+                  )}
                 </div>
 
                 <div className="field-group">
@@ -781,6 +906,82 @@ export function ChipCalculator() {
                 Reset
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* チップ追加の履歴 */}
+      {historyFor && (
+        <div className="confirm-overlay" onClick={() => setHistoryFor(null)}>
+          <div className="history-modal" onClick={e => e.stopPropagation()}>
+            <h3>
+              {historyFor === '*'
+                ? 'チップ追加の履歴'
+                : `${data.players.find(p => p.id === historyFor)?.name || '(名無し)'} のチップ追加`}
+            </h3>
+
+            {(() => {
+              const rows =
+                historyFor === '*' ? addonHistory(data) : addonsFor(data, historyFor)
+              if (rows.length === 0) {
+                return <p className="history-empty">まだ記録がありません</p>
+              }
+              return (
+                <ul className="history-list">
+                  {rows.map(({ id, addon }) => {
+                    const mine = addon.by === myId
+                    const iConfirmed = hasConfirmed(addon, myId)
+                    const checks = confirmedBy(addon)
+                    return (
+                      <li
+                        key={id}
+                        className={`history-row ${!mine && !iConfirmed ? 'needs-check' : ''}`}
+                      >
+                        <button
+                          className="history-main"
+                          disabled={mine || iConfirmed}
+                          onClick={() => confirmAddon(id)}
+                        >
+                          <span
+                            className={`history-delta ${addon.delta < 0 ? 'minus' : 'plus'}`}
+                          >
+                            {addon.delta > 0 ? '+' : ''}
+                            {addon.delta} バイイン
+                          </span>
+                          {historyFor === '*' && (
+                            <span className="history-player">
+                              {data.players.find(p => p.id === addon.player)?.name || '(削除済み)'}
+                            </span>
+                          )}
+                          <span className="history-meta">
+                            {memberNameOf(addon.by)} ・ {formatTime(stampToMs(addon.at))}
+                          </span>
+                          <span className="history-action">
+                            {mine ? '自分の追加' : iConfirmed ? '確認済み ✓' : 'タップで確認 ✓'}
+                          </span>
+                        </button>
+                        <div className="history-checks">
+                          {checks.length === 0 ? (
+                            <span className="history-check-none">確認 なし</span>
+                          ) : (
+                            checks.map(c => (
+                              <span key={c.clientId} className="history-check">
+                                ✓ {memberNameOf(c.clientId)}
+                                <span className="history-check-at">{formatTime(c.at)}</span>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )
+            })()}
+
+            <button className="share-close-btn" onClick={() => setHistoryFor(null)}>
+              閉じる
+            </button>
           </div>
         </div>
       )}

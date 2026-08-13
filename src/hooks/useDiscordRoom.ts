@@ -3,6 +3,7 @@ import { applyPatch, diffPaths, type Doc, type Leaf } from '../utils/docDiff'
 import {
   buildJoinUrl,
   createRoomMessage,
+  decodeLegacyState,
   DiscordSyncError,
   embedState,
   extractState,
@@ -12,6 +13,7 @@ import {
   type RoomRef,
 } from '../utils/discordSync'
 import {
+  boxToWire,
   deriveKey,
   generateCode,
   normalizeCode,
@@ -19,8 +21,8 @@ import {
   randomSalt,
   saltOf,
   seal,
+  wireToBox,
   WrongCodeError,
-  type SealedBox,
 } from '../utils/roomCrypto'
 
 export type RoomStatus = 'idle' | 'connecting' | 'locked' | 'live' | 'error'
@@ -135,7 +137,7 @@ export function useDiscordRoom<T extends Doc>({
     async (doc: T, ref: RoomRef, theCode: string, salt: Uint8Array): Promise<string> => {
       const key = await keyFor(theCode, salt)
       const box = await seal(doc, key, salt)
-      return embedState(renderRef.current(buildJoinUrl(ref)), box)
+      return embedState(renderRef.current(buildJoinUrl(ref)), boxToWire(box))
     },
     [keyFor]
   )
@@ -172,7 +174,7 @@ export function useDiscordRoom<T extends Doc>({
         const content = await readRoomMessage(room)
         if (cancelled) return
 
-        const found = extractState<SealedBox | T>(content)
+        const found = extractState(content)
         if (!found) {
           throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
         }
@@ -181,9 +183,16 @@ export function useDiscordRoom<T extends Doc>({
         let remote: T
         let salt: Uint8Array | null = null
         if (found.version === 'v1') {
-          remote = found.state as T
+          const legacy = decodeLegacyState<T>(found.payload)
+          if (!legacy) {
+            throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
+          }
+          remote = legacy
         } else {
-          const box = found.state as SealedBox
+          const box = wireToBox(found.payload)
+          if (!box) {
+            throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
+          }
           salt = saltOf(box)
           const theCode = codeRef.current
           if (!theCode) {
@@ -292,7 +301,10 @@ export function useDiscordRoom<T extends Doc>({
         const box = await seal(doc, key, salt)
 
         // 参加リンクはメッセージIDが決まってからでないと作れないので、投稿後に入れ直す
-        const messageId = await createRoomMessage(hook, embedState(renderRef.current(''), box))
+        const messageId = await createRoomMessage(
+          hook,
+          embedState(renderRef.current(''), boxToWire(box))
+        )
         const ref: RoomRef = { ...hook, messageId }
         await writeRoomMessage(ref, await composeMessage(doc, ref, newCode, salt))
 
@@ -358,16 +370,23 @@ export function useDiscordRoom<T extends Doc>({
     setError(null)
     try {
       const content = await readRoomMessage(room)
-      const found = extractState<SealedBox | T>(content)
+      const found = extractState(content)
       if (!found) {
         throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
       }
 
       let doc: T
       if (found.version === 'v1') {
-        doc = found.state as T
+        const legacy = decodeLegacyState<T>(found.payload)
+        if (!legacy) {
+          throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
+        }
+        doc = legacy
       } else {
-        const box = found.state as SealedBox
+        const box = wireToBox(found.payload)
+        if (!box) {
+          throw new DiscordSyncError('共有メッセージの中身を読めませんでした', 'not-found')
+        }
         const current = codeRef.current
         if (!current) throw new WrongCodeError()
         doc = await open<T>(box, await keyFor(current, saltOf(box)))

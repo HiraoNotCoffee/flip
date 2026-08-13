@@ -7,8 +7,10 @@
 const STORAGE_KEY = 'flip-client-id'
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
+// 短さが効く: このIDはアドオン1件ごとの確認記録にメンバー分だけ載るので、
+// 1文字削るだけで Discord のメッセージ数十文字ぶんの節約になる。
 function randomId(): string {
-  const bytes = new Uint8Array(12)
+  const bytes = new Uint8Array(5)
   crypto.getRandomValues(bytes)
   let id = 'c'
   for (const byte of bytes) id += ALPHABET[byte % ALPHABET.length]

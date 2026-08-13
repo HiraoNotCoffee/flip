@@ -1016,3 +1016,208 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* ------------------------------------------- Add-on log & confirmations */
+
+.rebuy-locked {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.65rem;
+  color: #777;
+}
+
+.player-history-btn {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #bbb;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.player-history-btn.alert {
+  border-color: transparent;
+  background: #e67e22;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+  animation: addon-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes addon-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230, 126, 34, 0.55); }
+  50% { box-shadow: 0 0 0 6px rgba(230, 126, 34, 0); }
+}
+
+.addon-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(230, 126, 34, 0.12);
+  border: 1px solid rgba(230, 126, 34, 0.45);
+}
+
+.addon-alert-mark {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e67e22;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.addon-alert-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: #f0b27a;
+}
+
+.addon-alert-btn {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #e67e22;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.history-modal {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 20px;
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.history-modal h3 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  color: #eee;
+  text-align: center;
+}
+
+.history-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-row {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.history-row.needs-check {
+  background: rgba(230, 126, 34, 0.12);
+  border: 1px solid rgba(230, 126, 34, 0.4);
+}
+
+.history-main {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.history-main:disabled {
+  cursor: default;
+}
+
+.history-delta {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.history-delta.plus {
+  color: #2ecc71;
+}
+
+.history-delta.minus {
+  color: #e74c3c;
+}
+
+.history-player {
+  font-size: 0.85rem;
+  color: #ddd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-meta {
+  grid-column: 1 / -1;
+  font-size: 0.7rem;
+  color: #999;
+}
+
+.history-action {
+  grid-row: 1;
+  grid-column: 3;
+  font-size: 0.72rem;
+  color: #e67e22;
+  white-space: nowrap;
+}
+
+.history-main:disabled .history-action {
+  color: #777;
+}
+
+.history-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+.history-check {
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  font-size: 0.68rem;
+}
+
+.history-check-at {
+  margin-left: 5px;
+  color: #7f8c8d;
+}
+
+.history-check-none {
+  font-size: 0.68rem;
+  color: #777;
+}
