@@ -1330,3 +1330,27 @@
   opacity: 0.4;
   cursor: default;
 }
+
+.claim-btn {
+  margin-left: 8px;
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(46, 204, 113, 0.5);
+  background: transparent;
+  color: #2ecc71;
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.settings-locked {
+  margin-left: 10px;
+  font-size: 0.62rem;
+  color: #777;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.setting-row input:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

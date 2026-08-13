@@ -196,13 +196,42 @@ function fromDoc(doc: ChipDoc): ChipData {
   }
 }
 
-/** 名前が一致するプレイヤーに紐づける。いなければ新しく作る。 */
-function linkPlayer(data: ChipData, name: string): { data: ChipData; playerId: string } {
+/** 最初の1口（100BB）。参加した時点でこれを買っている前提。 */
+const INITIAL_BUY_IN = 1
+
+/**
+ * 名前が一致するプレイヤーに紐づける。いなければ新しく作る。
+ *
+ * 新しく作るときは、最初の100BBも履歴の1行目として残す。こうしないと
+ * 「履歴の合計」と「実際のバイイン数」がずれて、あとから突き合わせられない。
+ */
+function linkPlayer(
+  data: ChipData,
+  name: string,
+  clientId: string
+): { data: ChipData; playerId: string } {
   const wanted = name.trim()
   const existing = data.players.find(p => p.name.trim() === wanted)
   if (existing) return { data, playerId: existing.id }
-  const player: ChipPlayer = { id: genId(), name: wanted, rebuyCount: 1, finalChips: 0 }
-  return { data: { ...data, players: [...data.players, player] }, playerId: player.id }
+
+  const player: ChipPlayer = {
+    id: genId(),
+    name: wanted,
+    rebuyCount: INITIAL_BUY_IN,
+    finalChips: 0,
+  }
+  const withPlayer: ChipData = { ...data, players: [...data.players, player] }
+  return {
+    data: {
+      ...withPlayer,
+      addons: withAddon(
+        withPlayer,
+        newAddonId(),
+        createAddon(player.id, clientId, INITIAL_BUY_IN, Date.now())
+      ),
+    },
+    playerId: player.id,
+  }
 }
 
 /**
@@ -326,13 +355,13 @@ export function ChipCalculator() {
   const [confirmReset, setConfirmReset] = useState(false)
 
   const handleReset = () => {
-    // 参加者と承認状態はルームそのものなので、数字のリセットでは消さない
+    // 参加者と承認状態はルームそのものなので残す。
+    // チップ追加の履歴はその回のお金の記録なので、数字と一緒に消す。
     mutate(prev => ({
       ...defaultData,
       players: [],
       hostId: prev.hostId,
       members: prev.members,
-      addons: prev.addons,
     }))
     setConfirmReset(false)
   }
@@ -380,7 +409,7 @@ export function ChipCalculator() {
       if (status !== 'approved' || current.playerId) {
         return { ...prev, members: withMember(prev, id, { ...current, status }) }
       }
-      const linked = linkPlayer(prev, current.name)
+      const linked = linkPlayer(prev, current.name, id)
       return {
         ...linked.data,
         members: withMember(linked.data, id, { ...current, status, playerId: linked.playerId }),
@@ -454,12 +483,28 @@ export function ChipCalculator() {
     setBuyInFor(null)
   }
 
+  /** 場のルール（レート等）はホストが決める。共有中は他の人は触れない。 */
+  const settingsLocked = inRoom && access !== 'host'
+
   const [historyFor, setHistoryFor] = useState<string | null>(null)
   const unconfirmed = inRoom ? unconfirmedFor(data, myId) : []
   const memberNameOf = (clientId: string) => data.members?.[clientId]?.name ?? '不明'
 
   const removeMember = (id: string) => {
     mutate(prev => ({ ...prev, members: withoutMember(prev, id) }))
+  }
+
+  /**
+   * 「この行が自分」と名乗る。誰も紐づいていないプレイヤーにだけ使える。
+   * 承認時の自動紐づけは名前が一致した場合だけなので、あとから名前を変えたり
+   * 手でプレイヤーを足したりすると自分の行が無い状態になる。その復旧口。
+   */
+  const claimPlayer = (playerId: string) => {
+    mutate(prev => {
+      const me = prev.members?.[myId]
+      if (!me) return prev
+      return { ...prev, members: withMember(prev, myId, { ...me, playerId }) }
+    })
   }
 
   // --- 共有UI ---------------------------------------------------------------
@@ -494,7 +539,15 @@ export function ChipCalculator() {
     // 自分をホスト（承認済み）として登録してから投稿する
     const hostName = hostNameInput.trim() || 'ホスト'
     mutate(prev => {
-      const linked = linkPlayer(prev, hostName)
+      // 前のルームの参加者・承認状態・チップ追加の履歴は持ち込まない。
+      // （持ち込むと「前回分の追加が未確認で出てくる」ことになる）
+      const fresh: ChipData = {
+        chipsPer100BB: prev.chipsPer100BB,
+        buyInYen: prev.buyInYen,
+        rake: prev.rake,
+        players: prev.players,
+      }
+      const linked = linkPlayer(fresh, hostName, myId)
       return {
         ...linked.data,
         hostId: myId,
@@ -530,6 +583,14 @@ export function ChipCalculator() {
       }
       dataRef.current = restored
       setData(restored)
+    } else {
+      // 数字は自分のものとして残すが、ルーム固有の情報は落とす
+      const { hostId: _h, members: _m, addons: _a, ...rest } = dataRef.current
+      void _h
+      void _m
+      void _a
+      dataRef.current = rest
+      setData(rest)
     }
     localStorage.removeItem(BACKUP_STORAGE_KEY)
     setShareOpen(false)
@@ -719,9 +780,12 @@ export function ChipCalculator() {
         </div>
       )}
 
-      {/* Settings */}
+      {/* Settings（共有中はホストだけが変えられる） */}
       <div className="chip-settings">
-        <h2>Settings</h2>
+        <h2>
+          Settings
+          {settingsLocked && <span className="settings-locked">ホストのみ変更できます</span>}
+        </h2>
         <div className="setting-row">
           <label>100BB =</label>
           <input
@@ -729,6 +793,7 @@ export function ChipCalculator() {
             inputMode="numeric"
             value={data.chipsPer100BB || ''}
             onChange={e => update({ chipsPer100BB: Number(e.target.value) || 0 })}
+            disabled={settingsLocked}
             placeholder="30000"
           />
           <span style={{ color: '#888', fontSize: '0.85rem' }}>chips</span>
@@ -740,6 +805,7 @@ export function ChipCalculator() {
             inputMode="numeric"
             value={data.buyInYen || ''}
             onChange={e => update({ buyInYen: Number(e.target.value) || 0 })}
+            disabled={settingsLocked}
             placeholder="3000"
           />
           <span style={{ color: '#888', fontSize: '0.85rem' }}>yen</span>
@@ -751,6 +817,7 @@ export function ChipCalculator() {
             inputMode="numeric"
             value={data.rake || ''}
             onChange={e => update({ rake: Number(e.target.value) || 0 })}
+            disabled={settingsLocked}
             placeholder="0"
           />
           <span style={{ color: '#888', fontSize: '0.85rem' }}>chips</span>
@@ -761,9 +828,12 @@ export function ChipCalculator() {
       <div className="chip-players">
         <div className="chip-players-header">
           <h2>Players</h2>
-          <button className="add-player-btn" onClick={addPlayer}>
-            + Add
-          </button>
+          {/* 共有中は承認で自動的に増えるので出さない */}
+          {!inRoom && (
+            <button className="add-player-btn" onClick={addPlayer}>
+              + Add
+            </button>
+          )}
         </div>
 
         {data.players.map(player => {
@@ -800,7 +870,7 @@ export function ChipCalculator() {
 
               <div className="player-card-fields">
                 <div className="field-group">
-                  <label>Buy-in count</label>
+                  <label>アドオン数</label>
                   <div className="rebuy-control">
                     <span className="rebuy-count">{player.rebuyCount}</span>
                     <button
@@ -808,11 +878,18 @@ export function ChipCalculator() {
                       disabled={!canAdjust(player.id)}
                       onClick={() => openBuyIn(player.id)}
                     >
-                      バイイン
+                      アドオン
                     </button>
                   </div>
                   {inRoom && !canAdjust(player.id) && (
-                    <span className="rebuy-locked">本人だけが追加できます</span>
+                    <span className="rebuy-locked">
+                      本人だけが追加できます
+                      {!linkedPlayerIds.has(player.id) && data.members?.[myId] && (
+                        <button className="claim-btn" onClick={() => claimPlayer(player.id)}>
+                          これは自分
+                        </button>
+                      )}
+                    </span>
                   )}
                 </div>
 
@@ -931,8 +1008,8 @@ export function ChipCalculator() {
         return (
           <div className="confirm-overlay" onClick={() => setBuyInFor(null)}>
             <div className="buyin-modal" onClick={e => e.stopPropagation()}>
-              <h3>{player.name || '(名無し)'} のバイイン</h3>
-              <p className="buyin-note">何バイイン分を追加しますか？</p>
+              <h3>{player.name || '(名無し)'} のアドオン</h3>
+              <p className="buyin-note">いくつ追加しますか？（1 = 100BB）</p>
 
               <div className="buyin-quick">
                 {['0.5', '1', '2', '3'].map(n => (
@@ -961,7 +1038,7 @@ export function ChipCalculator() {
               />
 
               <div className="buyin-preview">
-                {player.rebuyCount} → <strong>{buyInValid ? after : player.rebuyCount}</strong> バイイン
+                {player.rebuyCount} → <strong>{buyInValid ? after : player.rebuyCount}</strong> アドオン
                 {buyInValid && (
                   <span className="buyin-yen">
                     （+¥{Math.round(data.buyInYen * buyInAmount).toLocaleString()}）
@@ -1027,7 +1104,7 @@ export function ChipCalculator() {
                             className={`history-delta ${addon.delta < 0 ? 'minus' : 'plus'}`}
                           >
                             {addon.delta > 0 ? '+' : ''}
-                            {addon.delta} バイイン
+                            {addon.delta} アドオン
                           </span>
                           {historyFor === '*' && (
                             <span className="history-player">
