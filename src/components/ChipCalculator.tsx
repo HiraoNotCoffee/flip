@@ -412,8 +412,10 @@ export function ChipCalculator() {
       const at = Date.now()
       const player = prev.players.find(p => p.id === playerId)
       if (!player) return prev
-      const nextCount = Math.max(0.5, Math.round((player.rebuyCount + delta) * 2) / 2)
-      const applied = Math.round((nextCount - player.rebuyCount) * 2) / 2
+      // 端数が積み上がらないよう小数第1位で丸める。合計はマイナスにしない。
+      const round = (n: number) => Math.round(n * 10) / 10
+      const nextCount = Math.max(0, round(player.rebuyCount + delta))
+      const applied = round(nextCount - player.rebuyCount)
       if (applied === 0) return prev
       const next = {
         ...prev,
@@ -432,6 +434,24 @@ export function ChipCalculator() {
 
   const confirmAddon = (addonId: string) => {
     mutate(prev => ({ ...prev, addons: withConfirm(prev, addonId, myId, Date.now()) }))
+  }
+
+  // バイイン → 数字入力 → 追加 の流れ
+  const [buyInFor, setBuyInFor] = useState<string | null>(null)
+  const [buyInInput, setBuyInInput] = useState('1')
+
+  const openBuyIn = (playerId: string) => {
+    setBuyInInput('1')
+    setBuyInFor(playerId)
+  }
+
+  const buyInAmount = Number(buyInInput)
+  const buyInValid = Number.isFinite(buyInAmount) && buyInAmount > 0
+
+  const commitBuyIn = (sign: 1 | -1) => {
+    if (!buyInFor || !buyInValid) return
+    adjustRebuy(buyInFor, buyInAmount * sign)
+    setBuyInFor(null)
   }
 
   const [historyFor, setHistoryFor] = useState<string | null>(null)
@@ -782,24 +802,17 @@ export function ChipCalculator() {
                 <div className="field-group">
                   <label>Buy-in count</label>
                   <div className="rebuy-control">
-                    <button
-                      className="rebuy-btn"
-                      disabled={player.rebuyCount <= 0.5 || !canAdjust(player.id)}
-                      onClick={() => adjustRebuy(player.id, -0.5)}
-                    >
-                      −
-                    </button>
                     <span className="rebuy-count">{player.rebuyCount}</span>
                     <button
-                      className="rebuy-btn"
+                      className="buyin-btn"
                       disabled={!canAdjust(player.id)}
-                      onClick={() => adjustRebuy(player.id, 0.5)}
+                      onClick={() => openBuyIn(player.id)}
                     >
-                      +
+                      バイイン
                     </button>
                   </div>
                   {inRoom && !canAdjust(player.id) && (
-                    <span className="rebuy-locked">本人だけが増やせます</span>
+                    <span className="rebuy-locked">本人だけが追加できます</span>
                   )}
                 </div>
 
@@ -909,6 +922,74 @@ export function ChipCalculator() {
           </div>
         </div>
       )}
+
+      {/* バイインの追加（数字を入れて確定する） */}
+      {buyInFor && (() => {
+        const player = data.players.find(p => p.id === buyInFor)
+        if (!player) return null
+        const after = Math.round((player.rebuyCount + (buyInValid ? buyInAmount : 0)) * 10) / 10
+        return (
+          <div className="confirm-overlay" onClick={() => setBuyInFor(null)}>
+            <div className="buyin-modal" onClick={e => e.stopPropagation()}>
+              <h3>{player.name || '(名無し)'} のバイイン</h3>
+              <p className="buyin-note">何バイイン分を追加しますか？</p>
+
+              <div className="buyin-quick">
+                {['0.5', '1', '2', '3'].map(n => (
+                  <button
+                    key={n}
+                    className={`buyin-quick-btn ${buyInInput === n ? 'active' : ''}`}
+                    onClick={() => setBuyInInput(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                className="buyin-input"
+                type="number"
+                inputMode="decimal"
+                step="0.5"
+                min="0"
+                value={buyInInput}
+                onChange={e => setBuyInInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitBuyIn(1)
+                }}
+                autoFocus
+              />
+
+              <div className="buyin-preview">
+                {player.rebuyCount} → <strong>{buyInValid ? after : player.rebuyCount}</strong> バイイン
+                {buyInValid && (
+                  <span className="buyin-yen">
+                    （+¥{Math.round(data.buyInYen * buyInAmount).toLocaleString()}）
+                  </span>
+                )}
+              </div>
+
+              <button
+                className="buyin-add-btn"
+                disabled={!buyInValid}
+                onClick={() => commitBuyIn(1)}
+              >
+                追加
+              </button>
+              <button
+                className="share-text-btn"
+                disabled={!buyInValid || player.rebuyCount <= 0}
+                onClick={() => commitBuyIn(-1)}
+              >
+                間違えたので、この分を減らす
+              </button>
+              <button className="share-close-btn" onClick={() => setBuyInFor(null)}>
+                やめる
+              </button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* チップ追加の履歴 */}
       {historyFor && (
