@@ -823,7 +823,7 @@ export function ChipCalculator() {
           {settingsLocked && <span className="settings-locked">ホストのみ変更できます</span>}
         </h2>
         <div className="setting-row">
-          <label>100BB =</label>
+          <label>1 Buy-in (100BB) =</label>
           <input
             type="number"
             inputMode="numeric"
