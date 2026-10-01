@@ -1,0 +1,84 @@
+.shot-clock {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  /* ダブルタップでズームさせない */
+  touch-action: manipulation;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.shot-clock-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.shot-clock-bar-fill {
+  height: 100%;
+  background: #2ecc71;
+  transform-origin: left center;
+}
+
+.shot-clock-time {
+  font-size: min(60vw, 55vh);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #2ecc71;
+}
+
+.shot-clock-status {
+  height: 2rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #888;
+}
+
+.shot-clock-hint {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.shot-clock.paused .shot-clock-time {
+  opacity: 0.5;
+}
+
+.shot-clock.warn .shot-clock-time {
+  color: #f1c40f;
+}
+
+.shot-clock.warn .shot-clock-bar-fill {
+  background: #f1c40f;
+}
+
+.shot-clock.expired {
+  background: #5a0f0f;
+  animation: shot-clock-flash 0.5s ease-in-out 3;
+}
+
+.shot-clock.expired .shot-clock-time,
+.shot-clock.expired .shot-clock-status {
+  color: #ff4d4d;
+  opacity: 1;
+}
+
+@keyframes shot-clock-flash {
+  50% {
+    background: #c0392b;
+  }
+}

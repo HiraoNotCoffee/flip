@@ -7,10 +7,11 @@ import { Blackjack } from './components/Blackjack'
 import { HandBuilder } from './components/HandBuilder'
 import { Mahjong } from './components/Mahjong'
 import { MahjongLedger } from './components/MahjongLedger'
+import { ShotClock, SHOT_CLOCK_OPTIONS } from './components/ShotClock'
 import { checkForUpdate, superReload } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh' | 'mahjong' | 'mjledger'
+type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh' | 'mahjong' | 'mjledger' | 'shotclock'
 
 function App() {
   const {
@@ -37,9 +38,18 @@ function App() {
     if (saved === 'hh') return 'hh'
     if (saved === 'mahjong') return 'mahjong'
     if (saved === 'mjledger') return 'mjledger'
+    if (saved === 'shotclock') return 'shotclock'
     return 'flip'
   })
   const [menuOpen, setMenuOpen] = useState(false)
+  const [shotClockSeconds, setShotClockSeconds] = useState(() => {
+    const saved = Number(localStorage.getItem('flip-shot-clock-seconds'))
+    return (SHOT_CLOCK_OPTIONS as readonly number[]).includes(saved) ? saved : 30
+  })
+
+  useEffect(() => {
+    localStorage.setItem('flip-shot-clock-seconds', String(shotClockSeconds))
+  }, [shotClockSeconds])
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
@@ -354,6 +364,7 @@ function App() {
             page === 'hh' ? 'HH Export' :
             page === 'mahjong' ? '麻雀点数計算' :
             page === 'mjledger' ? '麻雀収支計算' :
+            page === 'shotclock' ? 'Shot Clock' :
             'Blackjack Count'
           }</h1>
         </div>
@@ -387,6 +398,22 @@ function App() {
                   Reset
                 </button>
               )}
+            </div>
+          </div>
+        )}
+        {page === 'shotclock' && (
+          <div className="header-controls">
+            <div className="player-select">
+              <select
+                value={shotClockSeconds}
+                onChange={e => setShotClockSeconds(Number(e.target.value))}
+              >
+                {SHOT_CLOCK_OPTIONS.map(n => (
+                  <option key={n} value={n}>
+                    {n}秒
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         )}
@@ -439,6 +466,12 @@ function App() {
               麻雀収支計算
             </button>
             <button
+              className={`menu-item ${page === 'shotclock' ? 'active' : ''}`}
+              onClick={() => selectPage('shotclock')}
+            >
+              Shot Clock
+            </button>
+            <button
               className="menu-item menu-reload"
               onClick={handleSuperReload}
             >
@@ -487,6 +520,8 @@ function App() {
         <Mahjong />
       ) : page === 'mjledger' ? (
         <MahjongLedger />
+      ) : page === 'shotclock' ? (
+        <ShotClock seconds={shotClockSeconds} />
       ) : (
         <Blackjack />
       )}
