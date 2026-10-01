@@ -13,7 +13,8 @@ type Props = {
 }
 
 /**
- * タップで満タンからスタート（動いていればリセット）、ダブルタップでストップ/スタート。
+ * タップ: 動いていれば満タンからやり直し、止まっていれば止めたところから再開。
+ * ダブルタップ: ストップ/スタート。
  * 1回目のタップはダブルタップかどうか確定するまで待ってからリセットする。
  * そうしないと、止めようとしたダブルタップの1回目で時間が戻ってしまう。
  */
@@ -82,12 +83,15 @@ export function ShotClock({ seconds }: Props) {
     void audioRef.current?.close()
   }, [])
 
-  /** 満タンに戻して数え始める。止まっていたらそのまま動かす。 */
+  /** 動いていれば満タンに戻して数え直す。止まっていれば止めたところから再開する。 */
   const reset = () => {
+    if (!running) {
+      toggle()
+      return
+    }
     firedRef.current = false
     setRemaining(total)
     deadlineRef.current = performance.now() + total
-    setRunning(true)
   }
 
   const toggle = () => {
@@ -137,7 +141,7 @@ export function ShotClock({ seconds }: Props) {
       <div className="shot-clock-status">
         {expired ? 'TIME' : running ? '' : 'STOP'}
       </div>
-      <div className="shot-clock-hint">タップでリセット＆スタート ・ ダブルタップでストップ/スタート</div>
+      <div className="shot-clock-hint">タップでリセット（停止中は再開） ・ ダブルタップでストップ/スタート</div>
     </div>
   )
 }
