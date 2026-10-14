@@ -8,8 +8,12 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 
 export type { ImpactKind }
 
-/** 指を離したときの速さ（ワールド単位/秒）にかける係数 */
-const RELEASE_SCALE = 0.4
+/**
+ * 指を離したときの速さ（ワールド単位/秒）にかける係数。
+ * 投げる速さが 15 くらいまでならお椀に収まり、20 を超えると縁を越えてションベンになる。
+ * 普通に弾いたくらいでは収まり、思いきり弾くとションベン、になるよう小さめにしてある。
+ */
+const RELEASE_SCALE = 0.18
 /** これより遅く離したら投げずに手を戻す */
 const MIN_RELEASE_SPEED = 6
 
