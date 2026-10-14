@@ -1,0 +1,140 @@
+.chinchiro {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.chinchiro-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.chinchiro-top {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.chinchiro-count {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.chinchiro-history {
+  display: flex;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #ccc;
+}
+
+.chinchiro-history span {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.chinchiro-bottom {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.chinchiro-hint {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 0.75rem;
+  color: #ddd;
+  text-align: center;
+}
+
+.chinchiro-motion-btn {
+  pointer-events: auto;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #b8860b, #ffd700);
+  color: #2a1a00;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chinchiro-result {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  min-width: 220px;
+  padding: 12px 24px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  text-align: center;
+  cursor: pointer;
+  animation: chinchiro-pop 0.25s ease-out;
+}
+
+.chinchiro-result-dice {
+  font-size: 0.9rem;
+  color: #bbb;
+  letter-spacing: 2px;
+}
+
+.chinchiro-result-name {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.chinchiro-result-next {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.chinchiro-result.hand-pinzoro,
+.chinchiro-result.hand-zorome,
+.chinchiro-result.hand-shigoro {
+  border-color: #ffd700;
+  box-shadow: 0 0 24px rgba(255, 215, 0, 0.6);
+}
+
+.chinchiro-result.hand-pinzoro .chinchiro-result-name,
+.chinchiro-result.hand-zorome .chinchiro-result-name,
+.chinchiro-result.hand-shigoro .chinchiro-result-name {
+  color: #ffd700;
+}
+
+.chinchiro-result.hand-hifumi,
+.chinchiro-result.hand-shonben {
+  border-color: #e74c3c;
+}
+
+.chinchiro-result.hand-hifumi .chinchiro-result-name,
+.chinchiro-result.hand-shonben .chinchiro-result-name {
+  color: #ff5a4a;
+}
+
+@keyframes chinchiro-pop {
+  from {
+    transform: translateX(-50%) scale(0.7);
+    opacity: 0;
+  }
+}

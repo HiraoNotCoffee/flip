@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
 import { ChipCalculator } from './components/ChipCalculator'
@@ -8,10 +8,13 @@ import { HandBuilder } from './components/HandBuilder'
 import { Mahjong } from './components/Mahjong'
 import { MahjongLedger } from './components/MahjongLedger'
 import { ShotClock, SHOT_CLOCK_OPTIONS } from './components/ShotClock'
+
+// three.js と物理演算で重いので、開いたときだけ読み込む
+const Chinchiro = lazy(() => import('./components/Chinchiro').then(m => ({ default: m.Chinchiro })))
 import { checkForUpdate, superReload } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh' | 'mahjong' | 'mjledger' | 'shotclock'
+type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh' | 'mahjong' | 'mjledger' | 'shotclock' | 'chinchiro'
 
 function App() {
   const {
@@ -39,6 +42,7 @@ function App() {
     if (saved === 'mahjong') return 'mahjong'
     if (saved === 'mjledger') return 'mjledger'
     if (saved === 'shotclock') return 'shotclock'
+    if (saved === 'chinchiro') return 'chinchiro'
     return 'flip'
   })
   const [menuOpen, setMenuOpen] = useState(false)
@@ -382,6 +386,7 @@ function App() {
             page === 'mahjong' ? '麻雀点数計算' :
             page === 'mjledger' ? '麻雀収支計算' :
             page === 'shotclock' ? 'Shot Clock' :
+            page === 'chinchiro' ? 'ちんちろ' :
             'Blackjack Count'
           }</h1>
         </div>
@@ -489,6 +494,12 @@ function App() {
               Shot Clock
             </button>
             <button
+              className={`menu-item ${page === 'chinchiro' ? 'active' : ''}`}
+              onClick={() => selectPage('chinchiro')}
+            >
+              ちんちろ
+            </button>
+            <button
               className="menu-item menu-reload"
               onClick={handleSuperReload}
             >
@@ -539,6 +550,10 @@ function App() {
         <MahjongLedger />
       ) : page === 'shotclock' ? (
         <ShotClock seconds={shotClockSeconds} />
+      ) : page === 'chinchiro' ? (
+        <Suspense fallback={<div className="page-loading">読み込み中...</div>}>
+          <Chinchiro />
+        </Suspense>
       ) : (
         <Blackjack />
       )}
