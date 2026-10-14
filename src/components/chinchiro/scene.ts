@@ -10,9 +10,9 @@ export type { ImpactKind }
 
 /**
  * 指を離したときの速さ（ワールド単位/秒）から投げる強さ（0〜1）への換算。
- * 普通に弾くと 30 前後、思いきり弾くと 60 くらい出る。
+ * 普通に弾くと 30 前後（強さ 0.5 くらい）、思いきり弾くと 45〜55（0.8〜1）。
  */
-const SWIPE_FULL_SPEED = 66
+const SWIPE_FULL_SPEED = 56
 /** これより遅く離したら投げずに手を戻す */
 const MIN_RELEASE_SPEED = 6
 

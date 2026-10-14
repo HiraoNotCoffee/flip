@@ -80,10 +80,10 @@ export function Chinchiro() {
         if (now - calmSince < SHAKE_END_MS) return
         shaking = false
         // いちばん強く振った向きと強さで投げる（画面の上方向 = 奥）。
-        // 12m/s² 以下はいちばん弱く、82m/s² 以上でいちばん強い。
-        // 普通に勢いよく振ると 40〜60m/s² くらい出るので、そこでは収まるようにしてある
-        // （シミュレーションでは強さ 0.7 まではションベン 0、0.8〜0.9 で約2割、1 で約3/4）
-        const strength = (peak.m - 12) / 70
+        // 12m/s² 以下はいちばん弱く、67m/s² 以上でいちばん強い。
+        // 普通に振ると 40m/s² くらいで強さ 0.5（よく動くが収まる）、
+        // 激しく振ると 50〜60m/s² で 0.7〜0.9（ションベンが 1/4〜1/2 くらい）
+        const strength = (peak.m - 12) / 55
         const h = Math.hypot(peak.x, peak.y)
         const dirX = h > 1 ? peak.x / h : 0
         const dirZ = h > 1 ? -peak.y / h : -1

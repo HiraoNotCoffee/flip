@@ -26,7 +26,7 @@ export const STEP = 1 / 180
 export const SETTLE_SECONDS = 0.25
 export const MAX_THROW_SPEED = 40
 /** throwInto の強さの割り当て（strength 0→1 でこの幅だけ増える） */
-export const THROW = { horizontal: 3, downMin: 2, down: 10, spinMin: 6, spin: 12, swirlMin: 4, swirl: 6 }
+export const THROW = { horizontal: 3, downMin: 2, down: 10, spinMin: 6, spin: 12, swirlMin: 4, swirl: 6, boostDown: 8, boostSwirl: 6 }
 /** お椀との摩擦。釉薬で滑るので小さめ（小さいほど中でよく動き回る） */
 export const BOWL_FRICTION = 0.1
 
@@ -149,10 +149,14 @@ export class DicePhysics {
     const dx = dirX / len
     const dz = dirZ / len
     this.placeInHand({ x: -dx * 0.5, y: HAND_Y, z: -dz * 0.5 + 0.3 })
+    // 強さが半分を超えたら勢いを上乗せする。弱めの投げ方はよく動くだけで収まり、
+    // 強く投げたときだけ跳ね出てションベンになりやすくする
+    const boost = Math.max(0, s - 0.5) * 2
     const h = 1 + s * THROW.horizontal
     // 横向きの勢いも足して、お椀の内側をぐるっと回るように動かす
-    const w = THROW.swirlMin + s * THROW.swirl
-    this.launch(dx * h - dz * w, dz * h + dx * w, -(THROW.downMin + s * THROW.down), 0)
+    const w = THROW.swirlMin + s * THROW.swirl + boost * THROW.boostSwirl
+    const down = THROW.downMin + s * THROW.down + boost * THROW.boostDown
+    this.launch(dx * h - dz * w, dz * h + dx * w, -down, 0)
     // 投げた向きに前転するような回転。さいころごとにひねりを変える
     this.dice.forEach((body, i) => {
       const w = THROW.spinMin + s * THROW.spin
