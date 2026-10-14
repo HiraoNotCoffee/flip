@@ -9,11 +9,10 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 export type { ImpactKind }
 
 /**
- * 指を離したときの速さ（ワールド単位/秒）にかける係数。
- * 投げる速さが 15 くらいまでならお椀に収まり、20 を超えると縁を越えてションベンになる。
- * 普通に弾いたくらいでは収まり、思いきり弾くとションベン、になるよう小さめにしてある。
+ * 指を離したときの速さ（ワールド単位/秒）から投げる強さ（0〜1）への換算。
+ * 普通に弾くと 30 前後、思いきり弾くと 60 くらい出る。
  */
-const RELEASE_SCALE = 0.18
+const SWIPE_FULL_SPEED = 66
 /** これより遅く離したら投げずに手を戻す */
 const MIN_RELEASE_SPEED = 6
 
@@ -250,20 +249,13 @@ export class ChinchiroScene {
     this.placeDiceInHand()
   }
 
-  /** 投げる。vx/vz はワールドの水平方向の速さ */
-  throwWithVelocity(vx: number, vz: number, vy = 0) {
+  /**
+   * 投げる（スワイプでもスマホを振るのでも共通）。strength は 0〜1。
+   * 手の位置は関係なく、いつもお椀の中へ落とす（physics.throwInto）。
+   */
+  throwStrength(strength: number, dirX: number, dirZ: number) {
     if (this.phase !== 'hand') return
-    this.physics.launch(vx, vz, vy)
-    this.phase = 'rolling'
-    this.stillTime = 0
-    this.rollTime = 0
-    this.events.onThrow()
-  }
-
-  /** スマホを振り終えたときに投げる（strength は 0〜1） */
-  throwFromShake(strength: number, dirX: number, dirZ: number) {
-    if (this.phase !== 'hand') return
-    this.physics.shakeThrow(strength, dirX, dirZ)
+    this.physics.throwInto(strength, dirX, dirZ)
     this.phase = 'rolling'
     this.stillTime = 0
     this.rollTime = 0
@@ -356,7 +348,8 @@ export class ChinchiroScene {
       this.placeDiceInHand()
       return
     }
-    this.throwWithVelocity(v.x * RELEASE_SCALE, v.z * RELEASE_SCALE)
+    const speed = Math.hypot(v.x, v.z)
+    this.throwStrength((speed - MIN_RELEASE_SPEED) / (SWIPE_FULL_SPEED - MIN_RELEASE_SPEED), v.x, v.z)
   }
 
   private moveHandTo(p: THREE.Vector3) {

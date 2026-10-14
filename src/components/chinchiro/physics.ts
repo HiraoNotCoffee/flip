@@ -25,6 +25,8 @@ export const STEP = 1 / 180
 /** 全部がこの秒数だけ止まっていたら役を出す */
 export const SETTLE_SECONDS = 0.25
 export const MAX_THROW_SPEED = 40
+/** throwInto の強さの割り当て（strength 0→1 でこの幅だけ増える） */
+export const THROW = { horizontal: 3, downMin: 3, down: 16, spinMin: 6, spin: 14 }
 
 export const HAND_Y = 5.6
 export const HAND_HOME = { x: 0, y: HAND_Y, z: 3.0 }
@@ -66,9 +68,9 @@ export class DicePhysics {
     const bowlMat = new CANNON.Material('bowl')
     const tableMat = new CANNON.Material('table')
     // ガラスやプラスチックのさいころが瀬戸物の上で跳ねる感じにするため、はね返りを強めにしてある
-    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, bowlMat, { friction: 0.3, restitution: 0.62 }))
-    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, tableMat, { friction: 0.35, restitution: 0.5 }))
-    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.2, restitution: 0.6 }))
+    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, bowlMat, { friction: 0.3, restitution: 0.78 }))
+    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, tableMat, { friction: 0.35, restitution: 0.55 }))
+    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.2, restitution: 0.72 }))
 
     this.tableBody = buildTable(tableMat)
     this.bowlBody = buildBowl(bowlMat)
@@ -133,20 +135,25 @@ export class DicePhysics {
   }
 
   /**
-   * スマホを振って投げる。strength は 0〜1、dirX/dirZ は振った向き（水平）。
-   * 横に飛ばすと縁を越えやすいので、お椀の真ん中寄りから下向きにたたきつける。
-   * 強く振るほど下向きの勢いと回転が強くなり、中で激しく跳ねる。
-   * 横の勢いは控えめなので、ションベンになるのは跳ね出たときだけ。
+   * 投げる（スワイプでもスマホを振るのでも共通）。strength は 0〜1、
+   * dirX/dirZ は投げた向き（水平）。
+   * 手の位置は関係なく、いつもお椀の真ん中の上から中へ落とす。いきなり外へは
+   * 飛ばさず、強いほど下向きの勢いと回転が強くなって中で激しく跳ねる。
+   * ションベンになるのは、着地してから跳ね返って縁を越えたときだけ。
    */
-  shakeThrow(strength: number, dirX: number, dirZ: number) {
+  throwInto(strength: number, dirX: number, dirZ: number) {
     const s = Math.min(1, Math.max(0, strength))
     const len = Math.hypot(dirX, dirZ) || 1
     const dx = dirX / len
     const dz = dirZ / len
-    // 投げる向きと反対側に少し寄せた位置から投げる
-    this.placeInHand({ x: -dx * 0.8, y: HAND_Y, z: -dz * 0.8 + 0.4 })
-    const h = 2 + s * 7
-    this.launch(dx * h, dz * h, -(3 + s * 16), 1.2 + s * 3)
+    this.placeInHand({ x: -dx * 0.5, y: HAND_Y, z: -dz * 0.5 + 0.3 })
+    const h = 1 + s * THROW.horizontal
+    this.launch(dx * h, dz * h, -(THROW.downMin + s * THROW.down), 0)
+    // 投げた向きに前転するような回転。さいころごとにひねりを変える
+    this.dice.forEach((body, i) => {
+      const w = THROW.spinMin + s * THROW.spin
+      body.angularVelocity.set(dz * w + (i - 1) * 3, (i - 1) * (4 + s * 10), -dx * w + (1 - i) * 2)
+    })
   }
 
   rotateDie(index: number, axis: { x: number; y: number; z: number }, angle: number) {
