@@ -79,14 +79,15 @@ export function Chinchiro() {
         if (!calmSince) calmSince = now
         if (now - calmSince < SHAKE_END_MS) return
         shaking = false
-        // いちばん強く振った向きと強さで投げる（画面の上方向 = 奥）
-        // スマホを振る加速度は大きく出やすいので、かなり抑える。
-        // 30m/s² で 7、50m/s² で 15（ここまで収まる）、60m/s² を超えるとションベン
-        const speed = Math.max(3, (peak.m - 12) * 0.4)
+        // いちばん強く振った向きと強さで投げる（画面の上方向 = 奥）。
+        // 12m/s² 以下はいちばん弱く、82m/s² 以上でいちばん強い。
+        // 普通に勢いよく振ると 40〜60m/s² くらい出るので、そこでは収まるようにしてある
+        // （シミュレーションでは強さ 0.5 まではションベン 0、0.75 で約2割、1 で約7割）
+        const strength = (peak.m - 12) / 70
         const h = Math.hypot(peak.x, peak.y)
         const dirX = h > 1 ? peak.x / h : 0
         const dirZ = h > 1 ? -peak.y / h : -1
-        scene.throwWithVelocity(dirX * speed, dirZ * speed)
+        scene.throwFromShake(strength, dirX, dirZ)
       } else {
         calmSince = 0
       }

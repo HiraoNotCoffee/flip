@@ -260,6 +260,16 @@ export class ChinchiroScene {
     this.events.onThrow()
   }
 
+  /** スマホを振り終えたときに投げる（strength は 0〜1） */
+  throwFromShake(strength: number, dirX: number, dirZ: number) {
+    if (this.phase !== 'hand') return
+    this.physics.shakeThrow(strength, dirX, dirZ)
+    this.phase = 'rolling'
+    this.stillTime = 0
+    this.rollTime = 0
+    this.events.onThrow()
+  }
+
   get canThrow() {
     return this.phase === 'hand'
   }

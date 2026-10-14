@@ -7,6 +7,16 @@ function roll(vx: number, vz: number, vy = 0) {
   const p = new DicePhysics()
   p.placeInHand(HAND_HOME)
   p.launch(vx, vz, vy)
+  return settle(p)
+}
+
+function shake(strength: number, dirX: number, dirZ: number) {
+  const p = new DicePhysics()
+  p.shakeThrow(strength, dirX, dirZ)
+  return settle(p)
+}
+
+function settle(p: DicePhysics) {
   let still = 0
   for (let t = 0; t < 15; t += 1 / 60) {
     p.step(1 / 60)
@@ -30,6 +40,13 @@ describe('ちんちろの物理演算', () => {
     }
   })
 
+  test('スマホを普通に振ったくらいではションベンにならない', () => {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2
+      expect(shake(0.5, Math.cos(a), Math.sin(a)).out).toBe(false)
+    }
+  })
+
   test('思いきり投げるとションベンになる', () => {
     expect(roll(0, -40).out).toBe(true)
   })
@@ -47,6 +64,18 @@ describe('ちんちろの物理演算', () => {
         times += r.time
       }
       lines.push(`speed ${speed}: ションベン ${out}/${n} 止まるまで平均 ${(times / n).toFixed(1)}秒`)
+    }
+    for (const strength of [0, 0.25, 0.5, 0.75, 1]) {
+      let out = 0
+      let times = 0
+      const n = 16
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2
+        const r = shake(strength, Math.cos(a), Math.sin(a))
+        if (r.out) out++
+        times += r.time
+      }
+      lines.push(`振る強さ ${strength}: ションベン ${out}/${n} 止まるまで平均 ${(times / n).toFixed(1)}秒`)
     }
     if (process.env.CHINCHIRO_REPORT) writeFileSync(process.env.CHINCHIRO_REPORT, lines.join('\n'))
   })

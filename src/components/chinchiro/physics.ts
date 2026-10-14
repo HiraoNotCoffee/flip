@@ -114,7 +114,7 @@ export class DicePhysics {
   }
 
   /** 手を離す。速さは水平方向で MAX_THROW_SPEED まで */
-  launch(vx: number, vz: number, vy = 0) {
+  launch(vx: number, vz: number, vy = 0, spin = 1.2) {
     const h = Math.hypot(vx, vz)
     if (h > MAX_THROW_SPEED) {
       vx *= MAX_THROW_SPEED / h
@@ -127,9 +127,26 @@ export class DicePhysics {
       body.wakeUp()
       body.velocity.set(vx, vy, vz)
       // 転がる向きに回転をかける。さいころごとに少しずつひねりを変える
-      body.angularVelocity.set(vz * 1.2, (i - 1) * 4, -vx * 1.2)
+      body.angularVelocity.set(vz * spin, (i - 1) * 4, -vx * spin)
     })
     this.rolling = true
+  }
+
+  /**
+   * スマホを振って投げる。strength は 0〜1、dirX/dirZ は振った向き（水平）。
+   * 横に飛ばすと縁を越えやすいので、お椀の真ん中寄りから下向きにたたきつける。
+   * 強く振るほど下向きの勢いと回転が強くなり、中で激しく跳ねる。
+   * 横の勢いは控えめなので、ションベンになるのは跳ね出たときだけ。
+   */
+  shakeThrow(strength: number, dirX: number, dirZ: number) {
+    const s = Math.min(1, Math.max(0, strength))
+    const len = Math.hypot(dirX, dirZ) || 1
+    const dx = dirX / len
+    const dz = dirZ / len
+    // 投げる向きと反対側に少し寄せた位置から投げる
+    this.placeInHand({ x: -dx * 0.8, y: HAND_Y, z: -dz * 0.8 + 0.4 })
+    const h = 2 + s * 7
+    this.launch(dx * h, dz * h, -(3 + s * 16), 1.2 + s * 3)
   }
 
   rotateDie(index: number, axis: { x: number; y: number; z: number }, angle: number) {
