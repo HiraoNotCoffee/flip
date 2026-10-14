@@ -32,45 +32,49 @@ const INITIAL_STATE: GameState = {
   winnerHandName: null
 }
 
+function dealHands(deck: Card[], playerCount: number): Player[] {
+  return Array.from({ length: playerCount }, (_, i) => ({
+    id: i + 1,
+    hand: [deck[i * 2], deck[i * 2 + 1]],
+    equity: 0,
+    lastPlacePct: 0,
+    rank: null,
+    evaluatedHand: null
+  }))
+}
+
+export function dealFair(playerCount: number) {
+  const deck = shuffleDeck(createDeck())
+  return { players: dealHands(deck, playerCount), remainingDeck: deck.slice(playerCount * 2) }
+}
+
+/**
+ * りっくん専用: P1 が必ず単独で勝つように配る。
+ * ボードは配る前に決まっている（残りの山の先頭5枚）ので、その5枚で
+ * 単独トップになる手札を P1 に渡す。同点トップの組み合わせだと
+ * チョップになってしまうので、単独トップが出るまで配り直す。
+ */
+export function dealRiggedForP1(playerCount: number) {
+  for (;;) {
+    const { players, remainingDeck } = dealFair(playerCount)
+    const futureBoard = remainingDeck.slice(0, 5)
+    const ranks = rankHands(players.map(p => evaluateHand(p.hand, futureBoard)))
+    if (ranks.filter(r => r === 1).length !== 1) continue
+    const winnerIndex = ranks.indexOf(1)
+    ;[players[0].hand, players[winnerIndex].hand] = [players[winnerIndex].hand, players[0].hand]
+    return { players, remainingDeck }
+  }
+}
+
 export function useGame() {
   const [state, setState] = useState<GameState>(INITIAL_STATE)
   const [playerCount, setPlayerCount] = useState(2)
-  const [specialMode, setSpecialMode] = useState(false)
+  const [rikkunMode, setRikkunMode] = useState(false)
 
   const deal = useCallback(() => {
-    const deck = shuffleDeck(createDeck())
-    let deckIndex = 0
-
-    const players: Player[] = []
-    for (let i = 0; i < playerCount; i++) {
-      players.push({
-        id: i + 1,
-        hand: [deck[deckIndex++], deck[deckIndex++]],
-        equity: 0,
-        lastPlacePct: 0,
-        rank: null,
-        evaluatedHand: null
-      })
-    }
-
-    const remainingDeck = deck.slice(deckIndex)
-
-    // Special mode: rig the winner
-    if (specialMode) {
-      const targetIndex = new Date().getHours() % playerCount
-      // Pre-determine the board (first 5 cards from remaining deck)
-      const futureBoard = remainingDeck.slice(0, 5)
-      // Evaluate all hands against the future board
-      const evaluatedHands = players.map(p => evaluateHand(p.hand, futureBoard))
-      const ranks = rankHands(evaluatedHands)
-      // If target player doesn't have rank 1, swap hands with the winner
-      if (ranks[targetIndex] !== 1) {
-        const winnerIndex = ranks.indexOf(1)
-        const temp = players[targetIndex].hand
-        players[targetIndex].hand = players[winnerIndex].hand
-        players[winnerIndex].hand = temp
-      }
-    }
+    const { players, remainingDeck } = rikkunMode
+      ? dealRiggedForP1(playerCount)
+      : dealFair(playerCount)
 
     // Calculate initial equity
     const equities = calculateEquity(
@@ -90,7 +94,7 @@ export function useGame() {
       deck: remainingDeck,
       winnerHandName: null
     })
-  }, [playerCount, specialMode])
+  }, [playerCount, rikkunMode])
 
   const dealFlop = useCallback(() => {
     setState(prev => {
@@ -213,8 +217,8 @@ export function useGame() {
     state,
     playerCount,
     setPlayerCount,
-    specialMode,
-    setSpecialMode,
+    rikkunMode,
+    setRikkunMode,
     deal,
     dealFlop,
     dealTurn,

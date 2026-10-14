@@ -18,8 +18,8 @@ function App() {
     state,
     playerCount,
     setPlayerCount,
-    specialMode,
-    setSpecialMode,
+    rikkunMode,
+    setRikkunMode,
     deal,
     dealFlop,
     dealTurn,
@@ -206,15 +206,30 @@ function App() {
     return false
   }
 
+  const renderRikkunDecor = () => (
+    <>
+      <span className="rikkun-sparkle">✦</span>
+      <span className="rikkun-sparkle">✦</span>
+      <span className="rikkun-sparkle">✦</span>
+      <span className="rikkun-sparkle">✦</span>
+      <span className="rikkun-sparkle">✦</span>
+      <span className="rikkun-ribbon">りっくん専用席</span>
+    </>
+  )
+
   const renderPlayerSlot = (index: number) => {
     const player = state.players[index]
     const slotActive = index < playerCount
 
     if (!slotActive) return null
 
+    // りっくん専用モードでは P1 の席を豪華にする
+    const isRikkunSeat = rikkunMode && index === 0
+
     if (state.stage === 'setup') {
       return (
-        <div key={index} className="player-slot">
+        <div key={index} className={`player-slot ${isRikkunSeat ? 'rikkun-seat' : ''}`}>
+          {isRikkunSeat && renderRikkunDecor()}
           <div className="player-cards">
             <CardView card={null} size="medium" />
             <CardView card={null} size="medium" />
@@ -251,11 +266,13 @@ function App() {
     const slotClass = [
       'player-slot',
       isWinner ? 'winner' : '',
-      isLastPlace ? 'current-last' : ''
+      isLastPlace ? 'current-last' : '',
+      isRikkunSeat ? 'rikkun-seat' : ''
     ].filter(Boolean).join(' ')
 
     return (
       <div key={index} className={slotClass}>
+        {isRikkunSeat && renderRikkunDecor()}
         <div className="player-cards">
           {showCard1 ? (
             <div className="card-dealing">
@@ -346,7 +363,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${specialMode && page === 'flip' ? 'special-mode' : ''}`}>
+    <div className={`app ${rikkunMode && page === 'flip' ? 'rikkun-mode' : ''}`}>
       {updating && (
         <div className="update-overlay">
           <div className="update-message">アップデート中...</div>
@@ -370,15 +387,15 @@ function App() {
         </div>
         {page === 'flip' && (
           <div className="header-controls">
-            <label className="special-toggle">
+            <label className="rikkun-toggle">
               <input
                 type="checkbox"
-                checked={specialMode}
-                onChange={e => setSpecialMode(e.target.checked)}
+                checked={rikkunMode}
+                onChange={e => setRikkunMode(e.target.checked)}
                 disabled={state.stage !== 'setup'}
               />
               <span className="toggle-slider" />
-              <span className="toggle-label">SP</span>
+              <span className="toggle-label">りっくん専用</span>
             </label>
             <div className="player-select">
               <label>Players:</label>
