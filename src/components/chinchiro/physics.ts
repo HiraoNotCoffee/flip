@@ -25,8 +25,10 @@ export const STEP = 1 / 180
 /** 全部がこの秒数だけ止まっていたら役を出す */
 export const SETTLE_SECONDS = 0.25
 export const MAX_THROW_SPEED = 40
+/** さいころ同士がぶつかったときに足す跳ね（up は当たった速さにかける係数） */
+export const KICK = { minSpeed: 2.5, up: 0.3, maxUp: 4.5, spin: 1.0, maxSpin: 14, cooldown: 0.2 }
 /** throwInto の強さの割り当て（strength 0→1 でこの幅だけ増える） */
-export const THROW = { horizontal: 3, downMin: 2, down: 10, spinMin: 6, spin: 12, swirlMin: 4, swirl: 6, boostDown: 8, boostSwirl: 6 }
+export const THROW = { horizontal: 3, downMin: 2, down: 10, spinMin: 6, spin: 12, swirlMin: 4, swirl: 6, boostDown: 8, boostSwirl: 6, convergeMin: 3, converge: 4 }
 /** お椀との摩擦。釉薬で滑るので小さめ（小さいほど中でよく動き回る） */
 export const BOWL_FRICTION = 0.1
 
@@ -60,6 +62,9 @@ export class DicePhysics {
   /** 転がっている間のぶつかり（音やバイブ用） */
   onImpact: ((kind: ImpactKind, speed: number) => void) | null = null
   private rolling = false
+  /** さいころ同士がぶつかったときの跳ね（次のステップの後でかける） */
+  private pendingKicks = new Map<CANNON.Body, number>()
+  private lastKick = new Map<CANNON.Body, number>()
 
   constructor() {
     this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, -GRAVITY, 0) })
@@ -72,7 +77,7 @@ export class DicePhysics {
     // ガラスやプラスチックのさいころが瀬戸物の上で跳ねる感じにするため、はね返りを強めにしてある
     this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, bowlMat, { friction: BOWL_FRICTION, restitution: 0.78 }))
     this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, tableMat, { friction: 0.35, restitution: 0.55 }))
-    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.12, restitution: 0.72 }))
+    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.12, restitution: 0.85 }))
 
     this.tableBody = buildTable(tableMat)
     this.bowlBody = buildBowl(bowlMat)
@@ -93,16 +98,38 @@ export class DicePhysics {
       // 最初の向きはばらばらにしておく（ここも乱数ではなく固定）
       body.quaternion.setFromEuler(i * 1.1, i * 0.7, i * 0.4)
       body.addEventListener('collide', (e: { body: CANNON.Body; contact: CANNON.ContactEquation }) => {
-        if (!this.rolling || !this.onImpact) return
+        if (!this.rolling) return
         const speed = Math.abs(e.contact.getImpactVelocityAlongNormal())
         const kind: ImpactKind =
           e.body === this.bowlBody ? 'bowl' : e.body === this.tableBody ? 'table' : 'dice'
-        this.onImpact(kind, speed)
+        if (kind === 'dice' && speed > KICK.minSpeed) {
+          this.pendingKicks.set(body, Math.max(this.pendingKicks.get(body) ?? 0, speed))
+        }
+        this.onImpact?.(kind, speed)
       })
       this.world.addBody(body)
       this.dice.push(body)
     }
     this.placeInHand(HAND_HOME)
+
+    // 立方体どうしがぶつかっても、この物理エンジンだと横に押し合うだけで
+    // ほとんど跳ねない。本物は角が当たって回りながら跳び上がるので、
+    // ぶつかった強さに応じて上向きの跳ねと回転を足す（乱数ではなくぶつかり方で決まる）
+    this.world.addEventListener('postStep', () => {
+      if (this.pendingKicks.size === 0) return
+      const now = this.world.time
+      this.pendingKicks.forEach((speed, body) => {
+        const last = this.lastKick.get(body) ?? -Infinity
+        if (now - last < KICK.cooldown) return
+        this.lastKick.set(body, now)
+        const i = this.dice.indexOf(body)
+        body.velocity.y += Math.min(KICK.maxUp, speed * KICK.up)
+        const spin = Math.min(KICK.maxSpin, speed * KICK.spin)
+        body.angularVelocity.x += i === 1 ? -spin : spin
+        body.angularVelocity.z += i === 2 ? -spin * 0.6 : spin * 0.6
+      })
+      this.pendingKicks.clear()
+    })
   }
 
   /** 手の中に持つ（重力もぶつかりも無効。向きはそのまま） */
@@ -157,6 +184,19 @@ export class DicePhysics {
     const w = THROW.swirlMin + s * THROW.swirl + boost * THROW.boostSwirl
     const down = THROW.downMin + s * THROW.down + boost * THROW.boostDown
     this.launch(dx * h - dz * w, dz * h + dx * w, -down, 0)
+
+    // 3つが同じ速さだと固まったまま落ちて、さいころ同士がほとんどぶつからない。
+    // 手の真ん中へ寄っていく向きの速さを足し、落ちる速さも少しずつ変えて、
+    // 空中や着地した後にお互いぶつかって弾き合うようにする（乱数ではなく固定のずらし方）
+    const cx = this.dice.reduce((sum, b) => sum + b.position.x, 0) / 3
+    const cz = this.dice.reduce((sum, b) => sum + b.position.z, 0) / 3
+    const converge = THROW.convergeMin + s * THROW.converge
+    this.dice.forEach((body, i) => {
+      body.velocity.x += (cx - body.position.x) * converge
+      body.velocity.z += (cz - body.position.z) * converge
+      body.velocity.y *= 1 + (i - 1) * 0.3
+    })
+
     // 投げた向きに前転するような回転。さいころごとにひねりを変える
     this.dice.forEach((body, i) => {
       const w = THROW.spinMin + s * THROW.spin
