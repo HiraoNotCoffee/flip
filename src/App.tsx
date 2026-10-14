@@ -161,13 +161,14 @@ function App() {
   const handleAction = async () => {
     switch (state.stage) {
       case 'setup':
-        // Check for app update before dealing
-        setUpdating(true)
-        if (await checkForUpdate()) {
+        // Check for app update before dealing. 確認中は何も出さず、更新が
+        // 見つかったときだけ「アップデート中」を出す（毎回一瞬出るのがうるさいので）。
+        // 確認を途中で打ち切ると、ハンドの途中で更新が入ってリロードされるので待つ。
+        if (await checkForUpdate().catch(() => false)) {
+          setUpdating(true)
           localStorage.setItem('flip-pending-deal', '1')
           return // controllerchange will reload, then auto-deal
         }
-        setUpdating(false)
         deal()
         break
       case 'preflop':

@@ -3,6 +3,8 @@ import {
   BOWL_BOTTOM, BOWL_DEPTH, BOWL_RIM, DIE, DicePhysics, FACE_VALUES, HAND_HOME, HAND_Y, OUTER_R, SETTLE_SECONDS,
   type ImpactKind,
 } from './physics'
+import { drawBottom, drawInner, drawOuter, GLAZE } from './bowlArt'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
 export type { ImpactKind }
 
@@ -80,8 +82,15 @@ export class ChinchiroScene {
 
   private buildLights() {
     this.scene.background = new THREE.Color('#1a0f0a')
-    this.scene.add(new THREE.HemisphereLight('#fff6e8', '#3a2414', 1.1))
-    const sun = new THREE.DirectionalLight('#ffffff', 2.2)
+    // 釉薬のつやが映り込むように、部屋の明かりを環境として入れる
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    this.scene.environment = env
+    this.scene.environmentIntensity = 0.12
+    pmrem.dispose()
+    this.disposables.push(env)
+    this.scene.add(new THREE.HemisphereLight('#fff6e8', '#3a2414', 0.8))
+    const sun = new THREE.DirectionalLight('#fff4e0', 1.7)
     sun.position.set(4, 14, 6)
     sun.castShadow = true
     sun.shadow.mapSize.set(1024, 1024)
@@ -108,35 +117,75 @@ export class ChinchiroScene {
     this.disposables.push(geo, mat)
   }
 
-  /** お椀の見た目（当たり判定は physics.ts） */
+  /**
+   * お椀の見た目（当たり判定は physics.ts）。染付のどんぶり風。
+   * 内側・外側・見込み・縁・高台を別々に作って、それぞれに絵付けを貼る。
+   */
   private buildBowl() {
-    const profile: THREE.Vector2[] = []
-    profile.push(new THREE.Vector2(0, 0.02))
-    profile.push(new THREE.Vector2(BOWL_BOTTOM, 0.02))
-    for (let i = 1; i <= 12; i++) {
-      const t = i / 12
-      profile.push(new THREE.Vector2(BOWL_BOTTOM + (BOWL_RIM - BOWL_BOTTOM) * t, BOWL_DEPTH * t))
+    const glaze = (map: THREE.Texture) =>
+      new THREE.MeshPhysicalMaterial({
+        map,
+        roughness: 0.12,
+        clearcoat: 1,
+        clearcoatRoughness: 0.06,
+        side: THREE.DoubleSide,
+      })
+    const tex = (c: HTMLCanvasElement, repeat = 1) => {
+      const t = new THREE.CanvasTexture(c)
+      t.colorSpace = THREE.SRGBColorSpace
+      t.wrapS = THREE.RepeatWrapping
+      t.repeat.set(repeat, 1)
+      t.anisotropy = 8
+      this.disposables.push(t)
+      return t
     }
-    profile.push(new THREE.Vector2(OUTER_R - 0.05, BOWL_DEPTH + 0.06))
-    profile.push(new THREE.Vector2(OUTER_R, BOWL_DEPTH - 0.05))
-    profile.push(new THREE.Vector2(OUTER_R - 0.15, 0.3))
-    profile.push(new THREE.Vector2(OUTER_R - 0.4, 0.0))
+    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, cast = false) => {
+      const mesh = new THREE.Mesh(geo, mat)
+      mesh.receiveShadow = true
+      mesh.castShadow = cast
+      this.scene.add(mesh)
+      this.disposables.push(geo, mat)
+      return mesh
+    }
 
-    const geo = new THREE.LatheGeometry(profile, 72)
-    const mat = new THREE.MeshStandardMaterial({ color: '#f4efe4', roughness: 0.18, side: THREE.DoubleSide })
-    const mesh = new THREE.Mesh(geo, mat)
-    // 影を落とさせると自分の内側が影で灰色になるので、受けるだけにする
-    mesh.receiveShadow = true
-    this.scene.add(mesh)
+    // 内側の斜面（当たり判定と同じまっすぐな斜面）
+    const inner: THREE.Vector2[] = []
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16
+      inner.push(new THREE.Vector2(BOWL_BOTTOM + (BOWL_RIM - BOWL_BOTTOM) * t, 0.02 + (BOWL_DEPTH - 0.02) * t))
+    }
+    add(new THREE.LatheGeometry(inner, 96), glaze(tex(drawInner(), 6)))
 
-    // 縁の藍色の線
-    const bandGeo = new THREE.TorusGeometry(OUTER_R - 0.02, 0.06, 8, 96)
-    const bandMat = new THREE.MeshStandardMaterial({ color: '#23408e', roughness: 0.3 })
-    const band = new THREE.Mesh(bandGeo, bandMat)
-    band.rotation.x = Math.PI / 2
-    band.position.y = BOWL_DEPTH - 0.25
-    this.scene.add(band)
-    this.disposables.push(geo, mat, bandGeo, bandMat)
+    // 見込み
+    const bottom = new THREE.CircleGeometry(BOWL_BOTTOM + 0.01, 64)
+    bottom.rotateX(-Math.PI / 2)
+    bottom.translate(0, 0.02, 0)
+    add(bottom, glaze(tex(drawBottom())))
+
+    // 外側：縁から少しすぼまって高台へ
+    const outer: THREE.Vector2[] = []
+    const footR = OUTER_R - 0.75
+    const footH = 0.35
+    for (let i = 0; i <= 16; i++) {
+      const t = i / 16
+      // 下→上。下のほうで丸くすぼまる
+      const y = footH + (BOWL_DEPTH - footH) * t
+      const r = footR + 0.15 + (OUTER_R - footR - 0.15) * Math.sin((t * Math.PI) / 2)
+      outer.push(new THREE.Vector2(r, y))
+    }
+    add(new THREE.LatheGeometry(outer, 96), glaze(tex(drawOuter(), 5)), true)
+
+    // 縁（丸い口づくり）
+    const lipR = (OUTER_R - BOWL_RIM) / 2
+    const lip = new THREE.TorusGeometry(BOWL_RIM + lipR, lipR, 12, 96)
+    lip.rotateX(Math.PI / 2)
+    lip.translate(0, BOWL_DEPTH, 0)
+    add(lip, new THREE.MeshPhysicalMaterial({ color: GLAZE, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.06 }))
+
+    // 高台（釉薬のかかっていない土の色）
+    const foot = new THREE.CylinderGeometry(footR + 0.15, footR, footH, 64, 1, true)
+    foot.translate(0, footH / 2, 0)
+    add(foot, new THREE.MeshStandardMaterial({ color: '#cdb48e', roughness: 0.9, side: THREE.DoubleSide }))
   }
 
   private buildDice() {
