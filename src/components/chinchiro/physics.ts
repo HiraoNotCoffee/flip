@@ -26,7 +26,9 @@ export const STEP = 1 / 180
 export const SETTLE_SECONDS = 0.25
 export const MAX_THROW_SPEED = 40
 /** throwInto の強さの割り当て（strength 0→1 でこの幅だけ増える） */
-export const THROW = { horizontal: 3, downMin: 3, down: 16, spinMin: 6, spin: 14 }
+export const THROW = { horizontal: 3, downMin: 2, down: 10, spinMin: 6, spin: 12, swirlMin: 4, swirl: 6 }
+/** お椀との摩擦。釉薬で滑るので小さめ（小さいほど中でよく動き回る） */
+export const BOWL_FRICTION = 0.1
 
 export const HAND_Y = 5.6
 export const HAND_HOME = { x: 0, y: HAND_Y, z: 3.0 }
@@ -68,9 +70,9 @@ export class DicePhysics {
     const bowlMat = new CANNON.Material('bowl')
     const tableMat = new CANNON.Material('table')
     // ガラスやプラスチックのさいころが瀬戸物の上で跳ねる感じにするため、はね返りを強めにしてある
-    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, bowlMat, { friction: 0.3, restitution: 0.78 }))
+    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, bowlMat, { friction: BOWL_FRICTION, restitution: 0.78 }))
     this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, tableMat, { friction: 0.35, restitution: 0.55 }))
-    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.2, restitution: 0.72 }))
+    this.world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.12, restitution: 0.72 }))
 
     this.tableBody = buildTable(tableMat)
     this.bowlBody = buildBowl(bowlMat)
@@ -82,8 +84,8 @@ export class DicePhysics {
         mass: 1,
         shape: new CANNON.Box(new CANNON.Vec3(HALF, HALF, HALF)),
         material: diceMat,
-        linearDamping: 0.02,
-        angularDamping: 0.04,
+        linearDamping: 0.01,
+        angularDamping: 0.02,
         allowSleep: true,
         sleepSpeedLimit: 0.08,
         sleepTimeLimit: 0.4,
@@ -148,7 +150,9 @@ export class DicePhysics {
     const dz = dirZ / len
     this.placeInHand({ x: -dx * 0.5, y: HAND_Y, z: -dz * 0.5 + 0.3 })
     const h = 1 + s * THROW.horizontal
-    this.launch(dx * h, dz * h, -(THROW.downMin + s * THROW.down), 0)
+    // 横向きの勢いも足して、お椀の内側をぐるっと回るように動かす
+    const w = THROW.swirlMin + s * THROW.swirl
+    this.launch(dx * h - dz * w, dz * h + dx * w, -(THROW.downMin + s * THROW.down), 0)
     // 投げた向きに前転するような回転。さいころごとにひねりを変える
     this.dice.forEach((body, i) => {
       const w = THROW.spinMin + s * THROW.spin
@@ -200,10 +204,14 @@ function buildTable(material: CANNON.Material) {
 /**
  * お椀の当たり判定。斜めの板を円形に並べて内側の斜面を作る。
  * その外にもう一枚まっすぐな壁を立てて、外に出たさいころが
- * 斜面の下にもぐり込まないようにしてある。底はテーブルの床をそのまま使う。
+ * 斜面の下にもぐり込まないようにしてある。
  */
 function buildBowl(material: CANNON.Material) {
   const body = new CANNON.Body({ mass: 0, material })
+  // 底。テーブルの床より少しだけ高くして、さいころがお椀の素材（よく滑る）に
+  // 当たるようにする。四角いが、はみ出した角は斜面の下に隠れる
+  const floor = BOWL_BOTTOM + 0.5
+  body.addShape(new CANNON.Box(new CANNON.Vec3(floor, 0.1, floor)), new CANNON.Vec3(0, -0.09, 0))
   const slope = Math.atan2(BOWL_DEPTH, BOWL_RIM - BOWL_BOTTOM)
   const slant = Math.hypot(BOWL_DEPTH, BOWL_RIM - BOWL_BOTTOM)
   const up = new THREE.Vector3(0, 1, 0)

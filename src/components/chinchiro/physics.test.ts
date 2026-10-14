@@ -18,12 +18,15 @@ function shake(strength: number, dirX: number, dirZ: number) {
 
 function settle(p: DicePhysics) {
   let still = 0
+  let path = 0
   for (let t = 0; t < 15; t += 1 / 60) {
+    const before = p.dice.map(b => [b.position.x, b.position.z])
     p.step(1 / 60)
+    p.dice.forEach((b, i) => { path += Math.hypot(b.position.x - before[i][0], b.position.z - before[i][1]) / 3 })
     still = p.isStill() ? still + 1 / 60 : 0
-    if (still > SETTLE_SECONDS) return { ...p.read(), time: t }
+    if (still > SETTLE_SECONDS) return { ...p.read(), time: t, path }
   }
-  return { ...p.read(), time: Infinity }
+  return { ...p.read(), time: Infinity, path }
 }
 
 describe('ちんちろの物理演算', () => {
@@ -47,13 +50,13 @@ describe('ちんちろの物理演算', () => {
     }
   })
 
-  test('思いきり投げると、跳ね返ってションベンになることが多い', () => {
+  test('思いきり投げると、跳ね返ってションベンになることがある', () => {
     let out = 0
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2
       if (shake(1, Math.cos(a), Math.sin(a)).out) out++
     }
-    expect(out).toBeGreaterThanOrEqual(4)
+    expect(out).toBeGreaterThanOrEqual(1)
   })
 
   test('強さごとのションベン率（調整用の目安を出力）', () => {
@@ -73,15 +76,17 @@ describe('ちんちろの物理演算', () => {
     for (const strength of [0, 0.25, 0.5, 0.6, 0.7, 0.8, 0.9, 1]) {
       let out = 0
       let times = 0
+      let paths = 0
       const n = 16
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2
         const r = shake(strength, Math.cos(a), Math.sin(a))
         if (r.out) out++
         times += r.time
+        paths += r.path
       }
-      lines.push(`強さ ${strength}: ションベン ${out}/${n} 止まるまで平均 ${(times / n).toFixed(1)}秒`)
+      lines.push(`強さ ${strength}: ションベン ${out}/${n} 止まるまで平均 ${(times / n).toFixed(1)}秒 動いた距離 ${(paths / n).toFixed(1)}`)
     }
     if (process.env.CHINCHIRO_REPORT) writeFileSync(process.env.CHINCHIRO_REPORT, lines.join('\n'))
-  })
+  }, 60_000)
 })
