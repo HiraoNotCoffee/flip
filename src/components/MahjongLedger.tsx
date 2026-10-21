@@ -6,6 +6,8 @@ import {
   rowStatus,
   rowSum,
   toYen,
+  venueBalance,
+  venueShares,
   type Cell,
   type Rate,
 } from '../utils/mahjongSheet'
@@ -16,6 +18,8 @@ interface SheetData {
   names: string[]
   rows: Cell[][]
   rate: Rate
+  /** 場代を各自がいくら払ったか（円）。合計を全員で割り勘する */
+  venuePaid: number[]
 }
 
 const STORAGE_KEY = 'mahjong-sheet-data'
@@ -33,6 +37,7 @@ function freshData(rate: Rate = 'tenpin'): SheetData {
     names: Array.from({ length: DEFAULT_PLAYERS }, () => ''),
     rows: Array.from({ length: DEFAULT_ROWS }, () => emptyRow(DEFAULT_PLAYERS)),
     rate,
+    venuePaid: Array.from({ length: DEFAULT_PLAYERS }, () => 0),
   }
 }
 
@@ -49,6 +54,10 @@ function loadData(): SheetData {
             Array.from({ length: columns }, (_, c) => (typeof r?.[c] === 'number' ? r[c] : null)),
           ),
           rate: parsed.rate === 'tengo' ? 'tengo' : 'tenpin',
+          venuePaid: Array.from({ length: columns }, (_, c) => {
+            const v = parsed.venuePaid?.[c]
+            return typeof v === 'number' && v > 0 ? v : 0
+          }),
         }
       }
     }
@@ -104,6 +113,31 @@ function ScoreCell({ value, onChange }: { value: Cell; onChange: (v: Cell) => vo
   )
 }
 
+/** 円の入力欄（0 は空欄で見せる） */
+function YenField({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const display = draft ?? (value === 0 ? '' : String(value))
+  return (
+    <input
+      className="mjs-yen-input"
+      type="text"
+      inputMode="numeric"
+      placeholder="0"
+      value={display}
+      onFocus={e => {
+        setDraft(display)
+        e.currentTarget.select()
+      }}
+      onChange={e => {
+        const raw = e.target.value.replace(/[^0-9]/g, '')
+        setDraft(raw)
+        onChange(raw === '' ? 0 : Number(raw))
+      }}
+      onBlur={() => setDraft(null)}
+    />
+  )
+}
+
 export function MahjongLedger() {
   const [data, setData] = useState<SheetData>(loadData)
   const [method, setMethod] = useState<'minimal' | 'hub'>('minimal')
@@ -117,11 +151,16 @@ export function MahjongLedger() {
     }
   }, [data])
 
-  const { names, rows, rate } = data
+  const { names, rows, rate, venuePaid } = data
   const columns = names.length
   const totals = columnTotals(rows, columns)
   const displayName = (c: number) => names[c].trim() || `名前${c + 1}`
-  const balances = totals.map((t, c) => ({ name: displayName(c), amount: toYen(t, rate) }))
+  const venueTotal = venuePaid.reduce((a, b) => a + b, 0)
+  const shares = venueShares(venueTotal, columns)
+  const venue = venueBalance(venuePaid)
+  // 点数の金額に場代（払った額 − 割り勘の負担）を足したものが最終的な収支
+  const finals = totals.map((t, c) => toYen(t, rate) + venue[c])
+  const balances = finals.map((amount, c) => ({ name: displayName(c), amount }))
   const yenGap = balances.reduce((sum, b) => sum + b.amount, 0)
   const transfers =
     method === 'minimal' ? minimalTransfers(balances) : hubTransfers(balances).rows
@@ -141,15 +180,28 @@ export function MahjongLedger() {
     setData(prev =>
       prev.names.length >= MAX_PLAYERS
         ? prev
-        : { ...prev, names: [...prev.names, ''], rows: prev.rows.map(r => [...r, null]) },
+        : {
+            ...prev,
+            names: [...prev.names, ''],
+            rows: prev.rows.map(r => [...r, null]),
+            venuePaid: [...prev.venuePaid, 0],
+          },
     )
 
   const removePlayer = () =>
     setData(prev =>
       prev.names.length <= MIN_PLAYERS
         ? prev
-        : { ...prev, names: prev.names.slice(0, -1), rows: prev.rows.map(r => r.slice(0, -1)) },
+        : {
+            ...prev,
+            names: prev.names.slice(0, -1),
+            rows: prev.rows.map(r => r.slice(0, -1)),
+            venuePaid: prev.venuePaid.slice(0, -1),
+          },
     )
+
+  const setVenuePaid = (c: number, yen: number) =>
+    setData(prev => ({ ...prev, venuePaid: prev.venuePaid.map((v, i) => (i === c ? yen : v)) }))
 
   const addRow = () => setData(prev => ({ ...prev, rows: [...prev.rows, emptyRow(prev.names.length)] }))
 
@@ -159,7 +211,8 @@ export function MahjongLedger() {
       return { ...prev, rows: next.length ? next : [emptyRow(prev.names.length)] }
     })
 
-  const hasContent = names.some(n => n !== '') || rows.some(r => r.some(v => v !== null))
+  const hasContent =
+    names.some(n => n !== '') || rows.some(r => r.some(v => v !== null)) || venueTotal > 0
 
   return (
     <div className="mjs">
@@ -240,6 +293,28 @@ export function MahjongLedger() {
               })}
               <td className="mjs-sum" />
             </tr>
+            {venueTotal > 0 && (
+              <>
+                <tr className="mjs-venue-row">
+                  <th className="mjs-th-no">場代</th>
+                  {venue.map((v, c) => (
+                    <td key={c} className={v > 0 ? 'positive' : v < 0 ? 'negative' : ''}>
+                      {signed(v)}
+                    </td>
+                  ))}
+                  <td className="mjs-sum" />
+                </tr>
+                <tr className="mjs-final-row">
+                  <th className="mjs-th-no">収支</th>
+                  {finals.map((v, c) => (
+                    <td key={c} className={v > 0 ? 'positive' : v < 0 ? 'negative' : ''}>
+                      {signed(v)}
+                    </td>
+                  ))}
+                  <td className="mjs-sum" />
+                </tr>
+              </>
+            )}
           </tfoot>
         </table>
       </div>
@@ -260,6 +335,28 @@ export function MahjongLedger() {
             </button>
           ))}
         </div>
+        <div className="mjs-venue">
+          <div className="mjs-venue-header">
+            <h3>場代</h3>
+            {venueTotal > 0 && (
+              <span className="mjs-venue-summary">
+                合計 ¥{venueTotal.toLocaleString()} / 1人 ¥
+                {shares[0] === shares[columns - 1]
+                  ? shares[0].toLocaleString()
+                  : `${shares[columns - 1].toLocaleString()}〜${shares[0].toLocaleString()}`}
+              </span>
+            )}
+          </div>
+          <p className="mjs-settle-how">払った人の欄に、払った金額を入れてください。合計を全員で割り勘して精算に含めます。</p>
+          {names.map((_, c) => (
+            <div key={c} className="mjs-venue-line">
+              <span className="mjs-venue-name">{displayName(c)}</span>
+              <YenField value={venuePaid[c]} onChange={v => setVenuePaid(c, v)} />
+              <span className="mjs-venue-unit">円</span>
+            </div>
+          ))}
+        </div>
+
         <div className="mjs-settle">
           <div className="mjs-settle-header">
             <h3>精算</h3>
@@ -296,7 +393,7 @@ export function MahjongLedger() {
           )}
           {yenGap !== 0 && (
             <p className="mjs-settle-warn">
-              合計が 0 になっていないので、精算が {signed(yenGap)}円 合いません。色の付いた行を確かめてください。
+              点数の合計が 0 になっていないので、精算が {signed(yenGap)}円 合いません。色の付いた行を確かめてください。
             </p>
           )}
         </div>
@@ -321,7 +418,7 @@ export function MahjongLedger() {
           <div className="confirm-modal" onClick={e => e.stopPropagation()}>
             <p>
               {confirm.kind === 'reset'
-                ? '名前と全ての点数を消しますか？'
+                ? '名前・全ての点数・場代を消しますか？'
                 : `第${confirm.index + 1}半荘の行を消しますか？`}
             </p>
             <div className="confirm-buttons">

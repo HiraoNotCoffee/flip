@@ -382,3 +382,81 @@
   font-size: 0.75rem;
   line-height: 1.5;
 }
+
+/* -------------------------------------------------- 場代 */
+.mjs-venue-row th,
+.mjs-venue-row td {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.mjs-final-row th,
+.mjs-final-row td {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.95rem;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mjs-venue {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mjs-venue-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mjs-venue-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.mjs-venue-summary {
+  font-size: 0.8rem;
+  color: #ccc;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjs-venue-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mjs-venue-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.mjs-yen-input {
+  width: 110px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.95rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjs-yen-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.mjs-venue-unit {
+  font-size: 0.8rem;
+  color: #888;
+}

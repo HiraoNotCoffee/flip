@@ -45,3 +45,21 @@ export function columnTotals(rows: Cell[][], columns: number): number[] {
 export function toYen(points: number, rate: Rate): number {
   return Math.round(points * RATE_YEN[rate])
 }
+
+/**
+ * 場代の割り勘。合計を人数で割り、1円単位で割り切れない分は前の人から1円ずつ足す
+ * （全員の負担の合計がぴったり場代の合計になるように）。
+ */
+export function venueShares(total: number, people: number): number[] {
+  if (people <= 0) return []
+  const base = Math.floor(total / people)
+  const rest = total - base * people
+  return Array.from({ length: people }, (_, i) => base + (i < rest ? 1 : 0))
+}
+
+/** 場代で各自がいくら得をしたか（払った額 − 割り勘の負担）。立て替えた人がプラスになる */
+export function venueBalance(paid: number[]): number[] {
+  const total = paid.reduce((s, v) => s + v, 0)
+  const shares = venueShares(total, paid.length)
+  return paid.map((p, i) => p - shares[i])
+}
