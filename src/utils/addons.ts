@@ -43,15 +43,29 @@ export interface AddonBook {
 export const MAX_ADDONS = 50
 
 let counter = 0
+/** この秒に自分の端末で出したID。同じ秒に何個も作っても、自分の中ではかぶらないようにする */
+let issuedSecond = -1
+const issued = new Set<string>()
 
 /**
  * 端末をまたいでぶつからないIDを作る。短くしたいが、別々の端末が同じ瞬間に
  * 足しても衝突しないだけの幅は要るので、秒＋乱数＋連番にしている。
+ * 長さは MAX_ADDONS の見積もりの前提なので、伸ばさずに作り直しで重複を避ける。
  */
 export function newAddonId(): string {
-  counter = (counter + 1) % 36
-  const random = Math.floor(Math.random() * 46656).toString(36)
-  return `a${(Math.floor(Date.now() / 1000) % 1679616).toString(36)}${random}${counter.toString(36)}`
+  const second = Math.floor(Date.now() / 1000)
+  if (second !== issuedSecond) {
+    issuedSecond = second
+    issued.clear()
+  }
+  for (;;) {
+    counter = (counter + 1) % 36
+    const random = Math.floor(Math.random() * 46656).toString(36)
+    const id = `a${(second % 1679616).toString(36)}${random}${counter.toString(36)}`
+    if (issued.has(id)) continue
+    issued.add(id)
+    return id
+  }
 }
 
 /** 追加した本人は自動で確認済みにする（自分がやったことは自分が知っている）。 */

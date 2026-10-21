@@ -29,7 +29,8 @@ function settle(p: DicePhysics) {
   return { ...p.read(), time: Infinity, path }
 }
 
-describe('ちんちろの物理演算', () => {
+// 物理を何百ステップも回すので、ほかのテストと並んで重くなると5秒では足りないことがある
+describe('ちんちろの物理演算', { timeout: 30_000 }, () => {
   test('同じ投げ方なら同じ結果になる（アプリの乱数を使っていない）', () => {
     expect(roll(1.5, -8)).toEqual(roll(1.5, -8))
   })
