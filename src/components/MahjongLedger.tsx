@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDiscordRoom } from '../hooks/useDiscordRoom'
+import { roomRefFromHash } from '../utils/discordSync'
+import { CODE_LENGTH, normalizeCode } from '../utils/roomCrypto'
 import {
   columnTotals,
   RATE_LABEL,
@@ -41,30 +44,86 @@ function freshData(rate: Rate = 'tenpin'): SheetData {
   }
 }
 
-function loadData(): SheetData {
+/** 保存データや共有で届いたデータを、壊れていても使える形に直す。読めなければ null */
+function parseSheet(json: string): SheetData | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<SheetData>
-      if (Array.isArray(parsed.names) && Array.isArray(parsed.rows)) {
-        const columns = parsed.names.length
-        return {
-          names: parsed.names.map(n => String(n ?? '')),
-          rows: parsed.rows.map(r =>
-            Array.from({ length: columns }, (_, c) => (typeof r?.[c] === 'number' ? r[c] : null)),
-          ),
-          rate: parsed.rate === 'tengo' ? 'tengo' : 'tenpin',
-          venuePaid: Array.from({ length: columns }, (_, c) => {
-            const v = parsed.venuePaid?.[c]
-            return typeof v === 'number' && v > 0 ? v : 0
-          }),
-        }
+    const parsed = JSON.parse(json) as Partial<SheetData>
+    if (Array.isArray(parsed.names) && Array.isArray(parsed.rows)) {
+      const columns = parsed.names.length
+      return {
+        names: parsed.names.map(n => String(n ?? '')),
+        rows: parsed.rows.map(r =>
+          Array.from({ length: columns }, (_, c) => (typeof r?.[c] === 'number' ? r[c] : null)),
+        ),
+        rate: parsed.rate === 'tengo' ? 'tengo' : 'tenpin',
+        venuePaid: Array.from({ length: columns }, (_, c) => {
+          const v = parsed.venuePaid?.[c]
+          return typeof v === 'number' && v > 0 ? v : 0
+        }),
       }
     }
   } catch {
-    // 壊れていたら作り直す
+    // 壊れていたら読めなかったことにする
+  }
+  return null
+}
+
+function loadData(): SheetData {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return parseSheet(raw) ?? freshData()
+  } catch {
+    // 保存先が使えなくても使える
   }
   return freshData()
+}
+
+// ---------------------------------------------------------------- Discord 共有
+//
+// チップ計算と同じ仕組み（Discord のメッセージ1通を保存先にして、コードで暗号化）。
+// ここは読み込み専用で、書き込むのは共有を始めた人（ホスト）だけ。リンクから
+// 開いた人は表を見るだけで、自分の手元の表は上書きされずに残る。
+//
+// 書き手が1人なので、表は丸ごと1つの文字列として載せる（差分の仕組みは配列を扱えない）。
+
+const ROOM_STORAGE_KEY = 'mahjong-sheet-room'
+const CODE_STORAGE_KEY = 'mahjong-sheet-code'
+/** 共有先のURLはチップ計算と共通にする（一度入れれば両方で使える） */
+const WEBHOOK_STORAGE_KEY = 'chip-calculator-webhook'
+/** このルームで自分がホストか、見ているだけか */
+const ROLE_STORAGE_KEY = 'mahjong-sheet-role'
+const HASH_KEY = 'mj'
+
+type ShareRole = 'host' | 'viewer'
+type SheetDoc = { sheet: string }
+
+function loadRole(): ShareRole | null {
+  try {
+    const v = localStorage.getItem(ROLE_STORAGE_KEY)
+    return v === 'host' || v === 'viewer' ? v : null
+  } catch {
+    return null
+  }
+}
+
+function saveRole(role: ShareRole | null) {
+  try {
+    if (role) localStorage.setItem(ROLE_STORAGE_KEY, role)
+    else localStorage.removeItem(ROLE_STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+/** Discord のチャンネルに出る本文。点数は暗号化して末尾に入るので、ここには出さない */
+function renderDiscordMessage(joinUrl: string): string {
+  const lines: string[] = []
+  lines.push('## 🀄 麻雀点数表')
+  lines.push('🔒 中身は暗号化されています（見るだけ・書き換えられるのは共有した人だけ）。')
+  lines.push('')
+  lines.push(`-# 更新 <t:${Math.floor(Date.now() / 1000)}:T>`)
+  if (joinUrl) lines.push(`▶ アプリで見る: ${joinUrl}`)
+  return lines.join('\n')
 }
 
 function signed(n: number) {
@@ -75,9 +134,25 @@ function signed(n: number) {
  * スコアの入力欄。iPhone の数字キーボードにはマイナスが無いので、
  * 横の「±」で符号を反転できるようにしてある。
  */
-function ScoreCell({ value, onChange }: { value: Cell; onChange: (v: Cell) => void }) {
+function ScoreCell({
+  value,
+  onChange,
+  readOnly,
+}: {
+  value: Cell
+  onChange: (v: Cell) => void
+  readOnly: boolean
+}) {
   const [draft, setDraft] = useState<string | null>(null)
   const display = draft ?? (value === null ? '' : String(value))
+
+  if (readOnly) {
+    return (
+      <div className={`mjs-cell readonly ${value !== null && value < 0 ? 'negative' : ''}`}>
+        <span>{value === null ? '' : value}</span>
+      </div>
+    )
+  }
 
   return (
     <div className={`mjs-cell ${value !== null && value < 0 ? 'negative' : ''}`}>
@@ -114,9 +189,18 @@ function ScoreCell({ value, onChange }: { value: Cell; onChange: (v: Cell) => vo
 }
 
 /** 円の入力欄（0 は空欄で見せる） */
-function YenField({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function YenField({
+  value,
+  onChange,
+  readOnly,
+}: {
+  value: number
+  onChange: (v: number) => void
+  readOnly: boolean
+}) {
   const [draft, setDraft] = useState<string | null>(null)
   const display = draft ?? (value === 0 ? '' : String(value))
+  if (readOnly) return <span className="mjs-yen-readonly">{value.toLocaleString()}</span>
   return (
     <input
       className="mjs-yen-input"
@@ -140,10 +224,21 @@ function YenField({ value, onChange }: { value: number; onChange: (v: number) =>
 
 export function MahjongLedger() {
   const [data, setData] = useState<SheetData>(loadData)
+  const dataRef = useRef(data)
   const [method, setMethod] = useState<'minimal' | 'hub'>('minimal')
   const [confirm, setConfirm] = useState<{ kind: 'reset' } | { kind: 'row'; index: number } | null>(null)
+  const [role, setRole] = useState<ShareRole | null>(loadRole)
+  /** 見ている人の画面に出す、ホストの表 */
+  const [remote, setRemote] = useState<SheetData | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [webhookInput, setWebhookInput] = useState('')
+  const [codeInput, setCodeInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const roleRef = useRef(role)
 
   useEffect(() => {
+    dataRef.current = data
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     } catch {
@@ -151,7 +246,270 @@ export function MahjongLedger() {
     }
   }, [data])
 
-  const { names, rows, rate, venuePaid } = data
+  useEffect(() => {
+    roleRef.current = role
+  }, [role])
+
+  const onRemoteDoc = useCallback((doc: SheetDoc) => {
+    // ホストは自分の手元が正。届いたものを反映するのは見ている人だけ
+    if (roleRef.current !== 'viewer') return
+    const sheet = typeof doc.sheet === 'string' ? parseSheet(doc.sheet) : null
+    if (sheet) setRemote(sheet)
+  }, [])
+
+  const room = useDiscordRoom<SheetDoc>({
+    storageKey: ROOM_STORAGE_KEY,
+    webhookStorageKey: WEBHOOK_STORAGE_KEY,
+    codeStorageKey: CODE_STORAGE_KEY,
+    getDoc: () => ({ sheet: JSON.stringify(dataRef.current) }),
+    onRemoteDoc,
+    renderMessage: renderDiscordMessage,
+    hashKey: HASH_KEY,
+    username: '麻雀点数表',
+  })
+
+  const shared = room.room !== null
+  const hosting = shared && role === 'host'
+  const viewing = shared && role === 'viewer'
+
+  // ホストは表を書き換えるたびに送る（少し待ってまとめて送るのはフック側がやる）
+  const pushToRoom = room.push
+  const lastPushed = useRef(JSON.stringify(data))
+  useEffect(() => {
+    const next = JSON.stringify(data)
+    if (!hosting) {
+      lastPushed.current = next
+      return
+    }
+    if (next === lastPushed.current) return
+    pushToRoom({ sheet: lastPushed.current }, { sheet: next })
+    lastPushed.current = next
+  }, [data, hosting, pushToRoom])
+
+  // 共有リンク（#mj=...）で開かれたら、見る人として入る。
+  // アプリを開いたままタップされたときはハッシュが変わるだけなので hashchange も拾う
+  const joinRoom = room.join
+  useEffect(() => {
+    const joinFromHash = () => {
+      const ref = roomRefFromHash(window.location.hash, HASH_KEY)
+      if (!ref) return
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      try {
+        const current = localStorage.getItem(ROOM_STORAGE_KEY)
+        // 自分が共有しているルームのリンクなら、見る人にならずにそのまま
+        if (current && (JSON.parse(current) as { messageId?: string }).messageId === ref.messageId) {
+          return
+        }
+      } catch {
+        // ignore
+      }
+      setRemote(null)
+      roleRef.current = 'viewer'
+      setRole('viewer')
+      saveRole('viewer')
+      void joinRoom(ref, ref.code)
+    }
+    joinFromHash()
+    window.addEventListener('hashchange', joinFromHash)
+    return () => window.removeEventListener('hashchange', joinFromHash)
+  }, [joinRoom])
+
+  const handleStart = async (url: string) => {
+    setBusy(true)
+    // 先にホストにしておく（始めた直後に届く自分のデータで画面が変わらないように）
+    roleRef.current = 'host'
+    setRole('host')
+    saveRole('host')
+    lastPushed.current = JSON.stringify(dataRef.current)
+    const issued = await room.start(url)
+    setBusy(false)
+    if (issued) {
+      setWebhookInput('')
+    } else {
+      roleRef.current = null
+      setRole(null)
+      saveRole(null)
+    }
+  }
+
+  const handleLeave = () => {
+    room.leave()
+    roleRef.current = null
+    setRole(null)
+    saveRole(null)
+    setRemote(null)
+    setShareOpen(false)
+  }
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(room.joinUrl)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // コピーできない環境では、表示されているリンクを長押しでコピーしてもらう
+    }
+  }
+
+  const lastSyncLabel = room.lastSyncAt
+    ? new Date(room.lastSyncAt).toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    : null
+
+  // 見ている人は、ホストの表が届くまで中身を出さない
+  const view = viewing ? remote : data
+  const readOnly = viewing
+
+  const shareBar = (
+    <div className={`mjs-share-bar ${shared ? 'shared' : ''}`}>
+      {shared ? (
+        <>
+          <span className={`share-status share-status-${room.status}`}>
+            {viewing ? '👀 見るだけ' : '📡 共有中'}
+            {' ・ '}
+            {room.status === 'live'
+              ? `同期 ${lastSyncLabel ?? ''}`
+              : room.status === 'locked'
+                ? 'コード待ち'
+                : room.status === 'error'
+                  ? '同期できていません'
+                  : '接続中…'}
+          </span>
+          <button className="mjs-share-btn" onClick={() => setShareOpen(true)}>
+            {viewing ? 'やめる' : '共有設定'}
+          </button>
+        </>
+      ) : (
+        <button className="mjs-share-btn primary" onClick={() => setShareOpen(true)}>
+          Discord で共有（見るだけ）
+        </button>
+      )}
+    </div>
+  )
+
+  const shareModal = shareOpen && (
+    <div className="confirm-overlay" onClick={() => setShareOpen(false)}>
+      <div className="share-modal" onClick={e => e.stopPropagation()}>
+        <h3>{viewing ? '共有された点数表' : 'Discord で共有'}</h3>
+        {viewing ? (
+          <>
+            <p className="share-note">
+              共有した人の点数表を見ています。こちらからは書き換えられません。
+              やめると、自分の点数表に戻ります。
+            </p>
+            <button className="share-leave-btn" onClick={handleLeave}>
+              見るのをやめる
+            </button>
+          </>
+        ) : hosting ? (
+          <>
+            <p className="share-note">
+              リンクを開いた人は、この点数表を<strong>見るだけ</strong>できます。
+              書き換えられるのはあなただけで、入力するとみんなの画面にも数秒で出ます。
+            </p>
+            <div className="share-code-label">リンク（共有先に投稿済み）</div>
+            <div className="share-link-box">{room.joinUrl}</div>
+            <div className="share-actions">
+              <button onClick={() => void copyLink()}>{copied ? 'コピーしました' : 'リンクをコピー'}</button>
+            </div>
+            <p className="share-warning">リンクを知っている人は中身を見られます。身内だけに配ってください。</p>
+            <div className="share-divider" />
+            <button className="share-leave-btn" onClick={handleLeave}>
+              共有をやめる（表は手元に残ります）
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="share-note">
+              Discord に点数表のリンクを投稿します。リンクを開いた人は<strong>見るだけ</strong>で、
+              書き換えられるのはあなただけです。
+            </p>
+            {room.savedWebhookUrl && (
+              <button
+                className="share-create-btn"
+                disabled={busy}
+                onClick={() => void handleStart(room.savedWebhookUrl)}
+              >
+                {busy ? '準備中…' : '共有を開始'}
+              </button>
+            )}
+            {!room.hasBuiltInWebhook && (
+              <>
+                {room.savedWebhookUrl && <div className="share-divider">または</div>}
+                <input
+                  className="share-webhook-input"
+                  value={webhookInput}
+                  onChange={e => setWebhookInput(e.target.value)}
+                  placeholder="共有先のURL（Discord のウェブフック）"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <button
+                  className="share-create-btn"
+                  disabled={busy || !webhookInput.trim()}
+                  onClick={() => void handleStart(webhookInput)}
+                >
+                  {busy ? '準備中…' : 'この共有先で開始'}
+                </button>
+              </>
+            )}
+            <p className="share-warning">リンクを知っている人は中身を見られます。身内だけに配ってください。</p>
+          </>
+        )}
+        {room.error && <div className="share-error">{room.error}</div>}
+        <button className="share-close-btn" onClick={() => setShareOpen(false)}>
+          閉じる
+        </button>
+      </div>
+    </div>
+  )
+
+  if (!view) {
+    return (
+      <div className="mjs">
+        {shareBar}
+        <div className="mjs-waiting">
+          {room.needsCode ? (
+            <>
+              <div className="mjs-waiting-icon">🔒</div>
+              <p>共有した人から聞いたコードを入れてください。</p>
+              <input
+                className="gate-code-input"
+                value={codeInput}
+                onChange={e => setCodeInput(e.target.value.toUpperCase())}
+                placeholder="ABCD-EFGH"
+                maxLength={CODE_LENGTH + 1}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <button
+                className="gate-submit-btn"
+                disabled={normalizeCode(codeInput).length !== CODE_LENGTH}
+                onClick={() => room.unlock(codeInput)}
+              >
+                開く
+              </button>
+            </>
+          ) : room.status === 'error' ? (
+            <p>{room.error ?? '共有された点数表を読めませんでした'}</p>
+          ) : (
+            <>
+              <div className="gate-spinner" />
+              <p>共有された点数表を読み込んでいます…</p>
+            </>
+          )}
+        </div>
+        {shareModal}
+      </div>
+    )
+  }
+
+  const { names, rows, rate, venuePaid } = view
   const columns = names.length
   const totals = columnTotals(rows, columns)
   const displayName = (c: number) => names[c].trim() || `名前${c + 1}`
@@ -216,6 +574,8 @@ export function MahjongLedger() {
 
   return (
     <div className="mjs">
+      {shareBar}
+      {!readOnly && (
       <div className="mjs-toolbar">
         <span className="mjs-toolbar-label">人数</span>
         <button className="mjs-tool-btn" onClick={removePlayer} disabled={columns <= MIN_PLAYERS}>
@@ -227,6 +587,7 @@ export function MahjongLedger() {
         </button>
         <span className="mjs-toolbar-hint">スコアは 1000点単位（±で符号）</span>
       </div>
+      )}
 
       <div className="mjs-table-wrap">
         <table className="mjs-table" style={{ minWidth: columns > 4 ? columns * 78 + 80 : undefined }}>
@@ -235,12 +596,16 @@ export function MahjongLedger() {
               <th className="mjs-th-no">#</th>
               {names.map((name, c) => (
                 <th key={c}>
-                  <input
-                    className="mjs-name"
-                    value={name}
-                    placeholder={`名前${c + 1}`}
-                    onChange={e => setName(c, e.target.value)}
-                  />
+                  {readOnly ? (
+                    <div className="mjs-name readonly">{name.trim() || `名前${c + 1}`}</div>
+                  ) : (
+                    <input
+                      className="mjs-name"
+                      value={name}
+                      placeholder={`名前${c + 1}`}
+                      onChange={e => setName(c, e.target.value)}
+                    />
+                  )}
                 </th>
               ))}
               <th className="mjs-th-sum">計</th>
@@ -256,14 +621,14 @@ export function MahjongLedger() {
                     <button
                       className="mjs-no-btn"
                       onClick={() => setConfirm({ kind: 'row', index: r })}
-                      disabled={status === 'empty' && rows.length === 1}
+                      disabled={readOnly || (status === 'empty' && rows.length === 1)}
                     >
                       {r + 1}
                     </button>
                   </td>
                   {row.map((v, c) => (
                     <td key={c}>
-                      <ScoreCell value={v} onChange={nv => setCell(r, c, nv)} />
+                      <ScoreCell value={v} onChange={nv => setCell(r, c, nv)} readOnly={readOnly} />
                     </td>
                   ))}
                   <td className="mjs-sum">{s === null ? '' : s === 0 ? '0' : signed(s)}</td>
@@ -320,15 +685,18 @@ export function MahjongLedger() {
       </div>
 
       <div className="mjs-footer">
-        <button className="mjs-add-row" onClick={addRow}>
-          ＋ 半荘を追加
-        </button>
+        {!readOnly && (
+          <button className="mjs-add-row" onClick={addRow}>
+            ＋ 半荘を追加
+          </button>
+        )}
         <div className="mjs-rate">
           {(['tenpin', 'tengo'] as Rate[]).map(key => (
             <button
               key={key}
               className={`mjs-rate-btn ${rate === key ? 'active' : ''}`}
               onClick={() => setData(prev => ({ ...prev, rate: key }))}
+              disabled={readOnly}
             >
               {RATE_LABEL[key]}
               <span className="mjs-rate-sub">1pt = {RATE_YEN[key]}円</span>
@@ -347,11 +715,13 @@ export function MahjongLedger() {
               </span>
             )}
           </div>
-          <p className="mjs-settle-how">払った人の欄に、払った金額を入れてください。合計を全員で割り勘して精算に含めます。</p>
+          {!readOnly && (
+            <p className="mjs-settle-how">払った人の欄に、払った金額を入れてください。合計を全員で割り勘して精算に含めます。</p>
+          )}
           {names.map((_, c) => (
             <div key={c} className="mjs-venue-line">
               <span className="mjs-venue-name">{displayName(c)}</span>
-              <YenField value={venuePaid[c]} onChange={v => setVenuePaid(c, v)} />
+              <YenField value={venuePaid[c]} onChange={v => setVenuePaid(c, v)} readOnly={readOnly} />
               <span className="mjs-venue-unit">円</span>
             </div>
           ))}
@@ -399,19 +769,23 @@ export function MahjongLedger() {
         </div>
 
         <p className="mjs-note">
-          行の合計が 0 でなければ色が付きます（多い = 緑、少ない = 赤）。半荘の番号をタップすると、その行を消せます。
+          {readOnly
+            ? '共有した人の点数表を見ています（書き換えられるのは共有した人だけ）。'
+            : '行の合計が 0 でなければ色が付きます（多い = 緑、少ない = 赤）。半荘の番号をタップすると、その行を消せます。'}
         </p>
       </div>
 
-      <div className="chip-reset-section">
-        <button
-          className="chip-reset-btn"
-          onClick={() => setConfirm({ kind: 'reset' })}
-          disabled={!hasContent}
-        >
-          リセット
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="chip-reset-section">
+          <button
+            className="chip-reset-btn"
+            onClick={() => setConfirm({ kind: 'reset' })}
+            disabled={!hasContent}
+          >
+            リセット
+          </button>
+        </div>
+      )}
 
       {confirm && (
         <div className="confirm-overlay" onClick={() => setConfirm(null)}>
@@ -439,6 +813,7 @@ export function MahjongLedger() {
           </div>
         </div>
       )}
+      {shareModal}
     </div>
   )
 }

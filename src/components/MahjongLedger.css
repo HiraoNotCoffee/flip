@@ -460,3 +460,88 @@
   font-size: 0.8rem;
   color: #888;
 }
+
+/* -------------------------------------------------- Discord 共有（見るだけ） */
+.mjs-share-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.mjs-share-bar.shared {
+  padding: 8px 12px;
+  border: 1px solid rgba(88, 101, 242, 0.4);
+  border-radius: 8px;
+  background: rgba(88, 101, 242, 0.1);
+}
+
+.mjs-share-btn {
+  margin-left: auto;
+  padding: 7px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: transparent;
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.mjs-share-btn.primary {
+  margin-left: 0;
+  width: 100%;
+  border: none;
+  background: #5865f2;
+  color: white;
+  font-weight: 600;
+}
+
+.mjs-waiting {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.mjs-waiting-icon {
+  font-size: 2rem;
+}
+
+.mjs-cell.readonly {
+  justify-content: flex-end;
+  height: 34px;
+  padding: 0 8px;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjs-cell.readonly.negative {
+  color: #ff8a80;
+}
+
+.mjs-name.readonly {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mjs-yen-readonly {
+  min-width: 80px;
+  text-align: right;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjs-rate-btn:disabled {
+  cursor: default;
+}
+
+.mjs-rate-btn:disabled:not(.active) {
+  opacity: 0.4;
+}

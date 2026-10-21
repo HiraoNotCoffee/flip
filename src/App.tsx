@@ -34,6 +34,8 @@ function App() {
   const [page, setPage] = useState<Page>(() => {
     // Discord 共有リンク（#dc=...）で開かれたらチップ計算を直接表示する
     if (/[#&]dc=/.test(window.location.hash)) return 'chip'
+    // 麻雀点数表の共有リンク（#mj=...）
+    if (/[#&]mj=/.test(window.location.hash)) return 'mjledger'
     const saved = localStorage.getItem('flip-app-page')
     if (saved === 'chip') return 'chip'
     if (saved === 'gto') return 'gto'
@@ -64,6 +66,7 @@ function App() {
   useEffect(() => {
     const onHashChange = () => {
       if (/[#&]dc=/.test(window.location.hash)) setPage('chip')
+      if (/[#&]mj=/.test(window.location.hash)) setPage('mjledger')
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)

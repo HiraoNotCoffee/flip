@@ -3,6 +3,7 @@ import { applyPatch, diffPaths, type Doc, type Leaf } from '../utils/docDiff'
 import {
   buildJoinUrl,
   createRoomMessage,
+  DEFAULT_HASH_KEY,
   decodeLegacyState,
   DiscordSyncError,
   embedState,
@@ -40,6 +41,10 @@ interface UseDiscordRoomOptions<T extends Doc> {
   onRemoteDoc: (doc: T) => void
   /** Discord に出す人が読む本文（末尾の同期用データはこのフックが足す） */
   renderMessage: (joinUrl: string) => string
+  /** 共有リンクのハッシュの印（例 'dc' → #dc=...）。ページごとに変える */
+  hashKey?: string
+  /** Discord に出る投稿者名 */
+  username?: string
 }
 
 // 実測（6人が同時にポーリング）では 2.5 秒間隔だと 17% が 429 になり、
@@ -101,6 +106,8 @@ export function useDiscordRoom<T extends Doc>({
   getDoc,
   onRemoteDoc,
   renderMessage,
+  hashKey = DEFAULT_HASH_KEY,
+  username,
 }: UseDiscordRoomOptions<T>) {
   const [room, setRoom] = useState<RoomRef | null>(() => loadRef(storageKey))
   const [status, setStatus] = useState<RoomStatus>('idle')
@@ -148,9 +155,9 @@ export function useDiscordRoom<T extends Doc>({
       const key = await keyFor(theCode, salt)
       const box = await seal(doc, key, salt)
       // チャンネルに出るリンクはコード入り＝タップだけで参加できる
-      return embedState(renderRef.current(buildJoinUrl(ref, theCode)), boxToWire(box))
+      return embedState(renderRef.current(buildJoinUrl(ref, theCode, hashKey)), boxToWire(box))
     },
-    [keyFor]
+    [keyFor, hashKey]
   )
 
   // 同期ループ
@@ -314,7 +321,8 @@ export function useDiscordRoom<T extends Doc>({
         // 参加リンクはメッセージIDが決まってからでないと作れないので、投稿後に入れ直す
         const messageId = await createRoomMessage(
           hook,
-          embedState(renderRef.current(''), boxToWire(box))
+          embedState(renderRef.current(''), boxToWire(box)),
+          username
         )
         const ref: RoomRef = { ...hook, messageId }
         await writeRoomMessage(ref, await composeMessage(doc, ref, newCode, salt))
@@ -335,7 +343,7 @@ export function useDiscordRoom<T extends Doc>({
         return null
       }
     },
-    [composeMessage, keyFor, storageKey, webhookStorageKey, codeStorageKey]
+    [composeMessage, keyFor, storageKey, webhookStorageKey, codeStorageKey, username]
   )
 
   /** 共有リンクから参加する。中身を読むにはこのあと unlock でコードが要る。 */
@@ -485,9 +493,9 @@ export function useDiscordRoom<T extends Doc>({
     code,
     needsCode: status === 'locked',
     /** コード入り＝タップだけで参加できる。チャンネルにもこれが載る。 */
-    joinUrl: room ? buildJoinUrl(room, code ?? undefined) : '',
+    joinUrl: room ? buildJoinUrl(room, code ?? undefined, hashKey) : '',
     /** コードなし＝別途コードを伝える必要がある（リンクが流れても中身は守られる）。 */
-    joinUrlWithoutCode: room ? buildJoinUrl(room) : '',
+    joinUrlWithoutCode: room ? buildJoinUrl(room, undefined, hashKey) : '',
     push,
     start,
     join,

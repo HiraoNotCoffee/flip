@@ -73,6 +73,13 @@ describe('share link', () => {
   it('returns null for junk', () => {
     expect(roomRefFromHash('#dc=!!!!')).toBeNull()
     expect(roomRefFromHash('#nothing')).toBeNull()
+  })
+
+  it('ページごとの印で見分ける（チップ計算のリンクを点数表で拾わない）', () => {
+    const hash = `#mj=${encodeRoomRef(REF, 'TBDYE3HN')}`
+    expect(roomRefFromHash(hash, 'mj')?.code).toBe('TBDYE3HN')
+    expect(roomRefFromHash(hash)).toBeNull()
+    expect(roomRefFromHash(`#dc=${encodeRoomRef(REF)}`, 'mj')).toBeNull()
     expect(decodeRoomRef('bm90LWEtcmVm')).toBeNull()
   })
 })

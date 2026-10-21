@@ -100,14 +100,20 @@ export function decodeRoomRef(encoded: string): (RoomRef & { code?: string }) | 
   }
 }
 
-export function buildJoinUrl(ref: RoomRef, code?: string): string {
+/** 共有リンクのハッシュの印。ページごとに変えて、開いたときにどのページか分かるようにする */
+export const DEFAULT_HASH_KEY = 'dc'
+
+export function buildJoinUrl(ref: RoomRef, code?: string, hashKey = DEFAULT_HASH_KEY): string {
   const base = `${window.location.origin}${window.location.pathname}`
-  return `${base}#dc=${encodeRoomRef(ref, code)}`
+  return `${base}#${hashKey}=${encodeRoomRef(ref, code)}`
 }
 
 /** URL のハッシュから参加情報を取り出す。コード入りならそれも返す。 */
-export function roomRefFromHash(hash: string): (RoomRef & { code?: string }) | null {
-  const match = /[#&]dc=([A-Za-z0-9_-]+)/.exec(hash)
+export function roomRefFromHash(
+  hash: string,
+  hashKey = DEFAULT_HASH_KEY
+): (RoomRef & { code?: string }) | null {
+  const match = new RegExp(`[#&]${hashKey}=([A-Za-z0-9_-]+)`).exec(hash)
   return match ? decodeRoomRef(match[1]) : null
 }
 
@@ -202,13 +208,17 @@ const MESSAGE_GONE = '共有データが見つかりません（削除された�
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
 /** 状態を入れるメッセージを新規投稿し、そのメッセージIDを返す。 */
-export async function createRoomMessage(hook: WebhookRef, content: string): Promise<string> {
+export async function createRoomMessage(
+  hook: WebhookRef,
+  content: string,
+  username = 'チップ計算'
+): Promise<string> {
   const message = await request(`${API_BASE}/webhooks/${hook.id}/${hook.token}?wait=true`, {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({
       content,
-      username: 'チップ計算',
+      username,
       allowed_mentions: { parse: [] },
     }),
   }, WEBHOOK_GONE)
