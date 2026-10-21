@@ -277,3 +277,108 @@
   color: #777;
   line-height: 1.5;
 }
+
+/* -------------------------------------------------- 精算 */
+.mjs-settle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mjs-settle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mjs-settle-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.mjs-settle-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.mjs-settle-tabs button {
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  background: none;
+  color: #aaa;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.mjs-settle-tabs button.active {
+  border-color: #3498db;
+  background: rgba(52, 152, 219, 0.25);
+  color: white;
+}
+
+.mjs-settle-how {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #888;
+}
+
+.mjs-settle-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mjs-settle-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 0.95rem;
+}
+
+.mjs-settle-from {
+  color: #ff8a80;
+  font-weight: 700;
+}
+
+.mjs-settle-arrow {
+  color: #666;
+}
+
+.mjs-settle-to {
+  color: #7dffb0;
+  font-weight: 700;
+}
+
+.mjs-settle-amount {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjs-settle-empty {
+  padding: 8px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.mjs-settle-warn {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(231, 76, 60, 0.2);
+  color: #ff8a80;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}

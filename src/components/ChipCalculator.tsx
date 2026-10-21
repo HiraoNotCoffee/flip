@@ -26,6 +26,7 @@ import {
   type Addon,
 } from '../utils/addons'
 import type { Doc } from '../utils/docDiff'
+import { hubTransfers, minimalTransfers } from '../utils/settlement'
 import './ChipCalculator.css'
 
 interface ChipPlayer {
@@ -95,59 +96,22 @@ function calcPnl(data: ChipData, p: ChipPlayer): number {
   return ((p.finalChips - received) / data.chipsPer100BB) * data.buyInYen
 }
 
-/** 誰が誰にいくら払うか。送金回数が最小になるよう、最大の負けと最大の勝ちから順に相殺する。 */
-function computeSettlements(data: ChipData) {
-  const debtors = data.players
-    .map(p => ({ name: p.name, amount: -Math.round(calcPnl(data, p)) }))
-    .filter(p => p.amount > 0)
-    .sort((a, b) => b.amount - a.amount)
-  const creditors = data.players
-    .map(p => ({ name: p.name, amount: Math.round(calcPnl(data, p)) }))
-    .filter(p => p.amount > 0)
-    .sort((a, b) => b.amount - a.amount)
+/** 精算に使う各自の収支（円） */
+function balancesOf(data: ChipData) {
+  return data.players.map(p => ({ name: p.name, amount: Math.round(calcPnl(data, p)) }))
+}
 
-  const result: { from: string; to: string; amount: number }[] = []
-  let i = 0
-  let j = 0
-  while (i < debtors.length && j < creditors.length) {
-    const pay = Math.min(debtors[i].amount, creditors[j].amount)
-    if (pay > 0) {
-      result.push({ from: debtors[i].name, to: creditors[j].name, amount: pay })
-    }
-    debtors[i].amount -= pay
-    creditors[j].amount -= pay
-    if (debtors[i].amount <= 0) i++
-    if (creditors[j].amount <= 0) j++
-  }
-  return result
+/** 精算その1：送金の回数がいちばん少なくなる組み合わせ */
+function computeSettlements(data: ChipData) {
+  return minimalTransfers(balancesOf(data))
 }
 
 /**
- * 精算その2「一番勝った人がまとめる」。
- *
- * 負けた人は全員、一番勝った人にだけ払う。そのあと一番勝った人が、他の勝った人へ
- * 配る。1人（＝一番勝った人）とだけやり取りすればいいので、卓上で回しやすい。
- * チップが合っていない分は一番勝った人のところで吸収される。
+ * 精算その2「一番勝った人がまとめる」。負けた人は全員一番勝った人にだけ払い、
+ * 一番勝った人が他の勝った人へ配る。チップが合っていない分は一番勝った人のところで吸収される。
  */
 function computeHubSettlements(data: ChipData) {
-  const ranked = data.players
-    .map(p => ({ name: p.name, amount: Math.round(calcPnl(data, p)) }))
-    .filter(p => p.amount !== 0)
-    .sort((a, b) => b.amount - a.amount)
-
-  const winners = ranked.filter(p => p.amount > 0)
-  const losers = ranked.filter(p => p.amount < 0)
-  if (winners.length === 0 || losers.length === 0) return { hub: null, rows: [] }
-
-  const hub = winners[0]
-  const rows: { from: string; to: string; amount: number }[] = []
-  for (const loser of losers) {
-    rows.push({ from: loser.name, to: hub.name, amount: -loser.amount })
-  }
-  for (const winner of winners.slice(1)) {
-    rows.push({ from: hub.name, to: winner.name, amount: winner.amount })
-  }
-  return { hub: hub.name, rows }
+  return hubTransfers(balancesOf(data))
 }
 
 // --- 共有ドキュメント --------------------------------------------------------

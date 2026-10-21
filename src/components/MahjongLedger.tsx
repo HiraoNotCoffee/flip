@@ -9,6 +9,7 @@ import {
   type Cell,
   type Rate,
 } from '../utils/mahjongSheet'
+import { hubTransfers, minimalTransfers } from '../utils/settlement'
 import './MahjongLedger.css'
 
 interface SheetData {
@@ -105,6 +106,7 @@ function ScoreCell({ value, onChange }: { value: Cell; onChange: (v: Cell) => vo
 
 export function MahjongLedger() {
   const [data, setData] = useState<SheetData>(loadData)
+  const [method, setMethod] = useState<'minimal' | 'hub'>('minimal')
   const [confirm, setConfirm] = useState<{ kind: 'reset' } | { kind: 'row'; index: number } | null>(null)
 
   useEffect(() => {
@@ -118,6 +120,11 @@ export function MahjongLedger() {
   const { names, rows, rate } = data
   const columns = names.length
   const totals = columnTotals(rows, columns)
+  const displayName = (c: number) => names[c].trim() || `名前${c + 1}`
+  const balances = totals.map((t, c) => ({ name: displayName(c), amount: toYen(t, rate) }))
+  const yenGap = balances.reduce((sum, b) => sum + b.amount, 0)
+  const transfers =
+    method === 'minimal' ? minimalTransfers(balances) : hubTransfers(balances).rows
 
   const setName = (c: number, name: string) =>
     setData(prev => ({ ...prev, names: prev.names.map((n, i) => (i === c ? name : n)) }))
@@ -253,6 +260,47 @@ export function MahjongLedger() {
             </button>
           ))}
         </div>
+        <div className="mjs-settle">
+          <div className="mjs-settle-header">
+            <h3>精算</h3>
+            <div className="mjs-settle-tabs">
+              <button
+                className={method === 'minimal' ? 'active' : ''}
+                onClick={() => setMethod('minimal')}
+              >
+                回数が少ない
+              </button>
+              <button className={method === 'hub' ? 'active' : ''} onClick={() => setMethod('hub')}>
+                トップにまとめる
+              </button>
+            </div>
+          </div>
+          <p className="mjs-settle-how">
+            {method === 'minimal'
+              ? '送金の回数がいちばん少なくなる組み合わせ'
+              : '負けた人はみんなトップに払い、トップが他の勝った人に配る'}
+          </p>
+          {transfers.length === 0 ? (
+            <div className="mjs-settle-empty">やりとりなし</div>
+          ) : (
+            <ul className="mjs-settle-list">
+              {transfers.map((t, i) => (
+                <li key={i}>
+                  <span className="mjs-settle-from">{t.from}</span>
+                  <span className="mjs-settle-arrow">→</span>
+                  <span className="mjs-settle-to">{t.to}</span>
+                  <span className="mjs-settle-amount">¥{t.amount.toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {yenGap !== 0 && (
+            <p className="mjs-settle-warn">
+              合計が 0 になっていないので、精算が {signed(yenGap)}円 合いません。色の付いた行を確かめてください。
+            </p>
+          )}
+        </div>
+
         <p className="mjs-note">
           行の合計が 0 でなければ色が付きます（多い = 緑、少ない = 赤）。半荘の番号をタップすると、その行を消せます。
         </p>
