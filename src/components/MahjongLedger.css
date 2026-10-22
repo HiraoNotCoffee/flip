@@ -545,3 +545,44 @@
 .mjs-rate-btn:disabled:not(.active) {
   opacity: 0.4;
 }
+
+/* -------------------------------------------------- ご祝儀 */
+.mjs-chip-rate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.mjs-chip-rate .mjs-yen-input {
+  width: 72px;
+  padding: 5px 6px;
+}
+
+.mjs-chip-rate .mjs-yen-readonly {
+  min-width: 0;
+}
+
+.mjs-chip-cell {
+  width: 96px;
+}
+
+.mjs-chip-yen {
+  min-width: 70px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjs-chip-yen.positive {
+  color: #2ecc71;
+}
+
+.mjs-chip-yen.negative {
+  color: #e74c3c;
+}
+
+.mjs-venue-line.chip-off .mjs-cell {
+  box-shadow: inset 0 0 0 1px rgba(231, 76, 60, 0.6);
+}
