@@ -3,11 +3,17 @@
  * スコアは 1000点単位の ±（例: +45, -12.3）。1行の合計は 0 になるはず。
  */
 
-export type Rate = 'tenpin' | 'tengo'
+export type Rate = 'tenpin' | 'tengo' | 'custom'
+export type PresetRate = Exclude<Rate, 'custom'>
 
 /** 1000点（1pt）あたりの円 */
-export const RATE_YEN: Record<Rate, number> = { tenpin: 100, tengo: 50 }
-export const RATE_LABEL: Record<Rate, string> = { tenpin: 'テンピン', tengo: 'テンゴ' }
+export const RATE_YEN: Record<PresetRate, number> = { tenpin: 100, tengo: 50 }
+export const RATE_LABEL: Record<Rate, string> = { tenpin: 'テンピン', tengo: 'テンゴ', custom: '自由' }
+
+/** 1pt あたりの円。「自由」のときは入力された金額 */
+export function yenPerPoint(rate: Rate, customYen: number): number {
+  return rate === 'custom' ? customYen : RATE_YEN[rate]
+}
 
 export type Cell = number | null
 
@@ -41,9 +47,9 @@ export function columnTotals(rows: Cell[][], columns: number): number[] {
   return Array.from({ length: columns }, (_, c) => sum(rows.map(r => r[c] ?? null)))
 }
 
-/** pt を円に。端数（小数のpt）は円未満を四捨五入 */
-export function toYen(points: number, rate: Rate): number {
-  return Math.round(points * RATE_YEN[rate])
+/** pt を円に（yen は 1pt あたりの円）。端数（小数のpt）は円未満を四捨五入 */
+export function toYen(points: number, yen: number): number {
+  return Math.round(points * yen)
 }
 
 /**

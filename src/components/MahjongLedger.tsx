@@ -9,6 +9,7 @@ import {
   rowStatus,
   rowSum,
   toYen,
+  yenPerPoint,
   venueBalance,
   venueShares,
   type Cell,
@@ -21,6 +22,8 @@ interface SheetData {
   names: string[]
   rows: Cell[][]
   rate: Rate
+  /** 「自由」のときの 1pt あたりの円 */
+  customYen: number
   /** 場代を各自がいくら払ったか（円）。合計を全員で割り勘する */
   venuePaid: number[]
   /** ご祝儀チップの枚数（±）。全員の合計は 0 になるはず */
@@ -35,6 +38,7 @@ const MIN_PLAYERS = 3
 const MAX_PLAYERS = 8
 const DEFAULT_ROWS = 8
 const DEFAULT_CHIP_YEN = 500
+const DEFAULT_CUSTOM_YEN = 30
 
 function emptyRow(columns: number): Cell[] {
   return Array.from({ length: columns }, () => null)
@@ -45,6 +49,7 @@ function freshData(rate: Rate = 'tenpin'): SheetData {
     names: Array.from({ length: DEFAULT_PLAYERS }, () => ''),
     rows: Array.from({ length: DEFAULT_ROWS }, () => emptyRow(DEFAULT_PLAYERS)),
     rate,
+    customYen: DEFAULT_CUSTOM_YEN,
     venuePaid: Array.from({ length: DEFAULT_PLAYERS }, () => 0),
     chips: Array.from({ length: DEFAULT_PLAYERS }, () => 0),
     chipYen: DEFAULT_CHIP_YEN,
@@ -62,7 +67,11 @@ function parseSheet(json: string): SheetData | null {
         rows: parsed.rows.map(r =>
           Array.from({ length: columns }, (_, c) => (typeof r?.[c] === 'number' ? r[c] : null)),
         ),
-        rate: parsed.rate === 'tengo' ? 'tengo' : 'tenpin',
+        rate: parsed.rate === 'tengo' || parsed.rate === 'custom' ? parsed.rate : 'tenpin',
+        customYen:
+          typeof parsed.customYen === 'number' && parsed.customYen >= 0
+            ? parsed.customYen
+            : DEFAULT_CUSTOM_YEN,
         venuePaid: Array.from({ length: columns }, (_, c) => {
           const v = parsed.venuePaid?.[c]
           return typeof v === 'number' && v > 0 ? v : 0
@@ -522,7 +531,8 @@ export function MahjongLedger() {
     )
   }
 
-  const { names, rows, rate, venuePaid, chips, chipYen } = view
+  const { names, rows, rate, customYen, venuePaid, chips, chipYen } = view
+  const yen = yenPerPoint(rate, customYen)
   const columns = names.length
   const totals = columnTotals(rows, columns)
   const displayName = (c: number) => names[c].trim() || `名前${c + 1}`
@@ -533,7 +543,7 @@ export function MahjongLedger() {
   const hasChips = chips.some(v => v !== 0)
   const chipYens = chips.map(n => Math.round(n * chipYen))
   // 点数の金額に、ご祝儀と場代（払った額 − 割り勘の負担）を足したものが最終的な収支
-  const finals = totals.map((t, c) => toYen(t, rate) + chipYens[c] + venue[c])
+  const finals = totals.map((t, c) => toYen(t, yen) + chipYens[c] + venue[c])
   const balances = finals.map((amount, c) => ({ name: displayName(c), amount }))
   const yenGap = balances.reduce((sum, b) => sum + b.amount, 0)
   const pointGap = rowSum(totals) ?? 0
@@ -674,10 +684,10 @@ export function MahjongLedger() {
             <tr className="mjs-yen-row">
               <th className="mjs-th-no">円</th>
               {totals.map((t, c) => {
-                const yen = toYen(t, rate)
+                const v = toYen(t, yen)
                 return (
-                  <td key={c} className={yen > 0 ? 'positive' : yen < 0 ? 'negative' : ''}>
-                    {signed(yen)}
+                  <td key={c} className={v > 0 ? 'positive' : v < 0 ? 'negative' : ''}>
+                    {signed(v)}
                   </td>
                 )
               })}
@@ -727,7 +737,7 @@ export function MahjongLedger() {
           </button>
         )}
         <div className="mjs-rate">
-          {(['tenpin', 'tengo'] as Rate[]).map(key => (
+          {(['tenpin', 'tengo'] as const).map(key => (
             <button
               key={key}
               className={`mjs-rate-btn ${rate === key ? 'active' : ''}`}
@@ -738,6 +748,28 @@ export function MahjongLedger() {
               <span className="mjs-rate-sub">1pt = {RATE_YEN[key]}円</span>
             </button>
           ))}
+          {/* 自由入力：押すと選ばれ、中の欄で 1pt あたりの円を変えられる */}
+          <div
+            className={`mjs-rate-btn custom ${rate === 'custom' ? 'active' : ''} ${readOnly ? 'readonly' : ''}`}
+            onClick={() => {
+              if (!readOnly && rate !== 'custom') setData(prev => ({ ...prev, rate: 'custom' }))
+            }}
+          >
+            {RATE_LABEL.custom}
+            <span className="mjs-rate-sub mjs-rate-custom">
+              1pt =
+              {readOnly ? (
+                <span className="mjs-yen-readonly">{customYen.toLocaleString()}</span>
+              ) : (
+                <YenField
+                  value={customYen}
+                  onChange={v => setData(prev => ({ ...prev, customYen: v, rate: 'custom' }))}
+                  readOnly={false}
+                />
+              )}
+              円
+            </span>
+          </div>
         </div>
         <div className="mjs-venue">
           <div className="mjs-venue-header">
@@ -887,7 +919,7 @@ export function MahjongLedger() {
               <button
                 className="confirm-ok"
                 onClick={() => {
-                  if (confirm.kind === 'reset') setData({ ...freshData(rate), chipYen })
+                  if (confirm.kind === 'reset') setData({ ...freshData(rate), customYen, chipYen })
                   else removeRow(confirm.index)
                   setConfirm(null)
                 }}

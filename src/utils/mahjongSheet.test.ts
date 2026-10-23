@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest'
-import { columnTotals, rowStatus, rowSum, toYen, venueBalance, venueShares } from './mahjongSheet'
+import {
+  columnTotals,
+  rowStatus,
+  rowSum,
+  toYen,
+  venueBalance,
+  venueShares,
+  yenPerPoint,
+} from './mahjongSheet'
 
 describe('点数表', () => {
   test('行の合計が 0 かどうか', () => {
@@ -26,9 +34,17 @@ describe('点数表', () => {
       [null, null, null, null],
     ]
     expect(columnTotals(rows, 4)).toEqual([25, 35, -5, -55])
-    expect(toYen(25, 'tenpin')).toBe(2500)
-    expect(toYen(25, 'tengo')).toBe(1250)
-    expect(toYen(-5.5, 'tengo')).toBe(-275)
+    expect(toYen(25, yenPerPoint('tenpin', 0))).toBe(2500)
+    expect(toYen(25, yenPerPoint('tengo', 0))).toBe(1250)
+    expect(toYen(-5.5, yenPerPoint('tengo', 0))).toBe(-275)
+  })
+
+  test('自由入力のレート（テンサン = 1pt 30円 など）', () => {
+    expect(yenPerPoint('custom', 30)).toBe(30)
+    expect(toYen(25, yenPerPoint('custom', 30))).toBe(750)
+    expect(toYen(-12.3, yenPerPoint('custom', 30))).toBe(-369)
+    // 自由を選んでいないときは入力値を使わない
+    expect(yenPerPoint('tenpin', 30)).toBe(100)
   })
 })
 
