@@ -35,7 +35,7 @@ interface SheetData {
 const STORAGE_KEY = 'mahjong-sheet-data'
 const DEFAULT_PLAYERS = 4
 const MIN_PLAYERS = 3
-const MAX_PLAYERS = 8
+const MAX_PLAYERS = 9
 const DEFAULT_ROWS = 8
 const DEFAULT_CHIP_YEN = 500
 const DEFAULT_CUSTOM_YEN = 30
