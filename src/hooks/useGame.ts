@@ -48,22 +48,20 @@ export function dealFair(playerCount: number) {
   return { players: dealHands(deck, playerCount), remainingDeck: deck.slice(playerCount * 2) }
 }
 
+/** りっくん専用で P1 に配るポケットペアの数字 */
+export const RIKKUN_PAIR_RANK = 8
+
 /**
- * りっくん専用: P1 が必ず単独で勝つように配る。
- * ボードは配る前に決まっている（残りの山の先頭5枚）ので、その5枚で
- * 単独トップになる手札を P1 に渡す。同点トップの組み合わせだと
- * チョップになってしまうので、単独トップが出るまで配り直す。
+ * りっくん専用: P1 に必ず 88 を配る（マークはランダム）。
+ * ほかの人の手札とボードは普通に配るので、P1 は有利なだけで負けることもある
+ * （必ず勝たせると不自然なので）。
  */
-export function dealRiggedForP1(playerCount: number) {
-  for (;;) {
-    const { players, remainingDeck } = dealFair(playerCount)
-    const futureBoard = remainingDeck.slice(0, 5)
-    const ranks = rankHands(players.map(p => evaluateHand(p.hand, futureBoard)))
-    if (ranks.filter(r => r === 1).length !== 1) continue
-    const winnerIndex = ranks.indexOf(1)
-    ;[players[0].hand, players[winnerIndex].hand] = [players[winnerIndex].hand, players[0].hand]
-    return { players, remainingDeck }
-  }
+export function dealPocketPairForP1(playerCount: number) {
+  const deck = shuffleDeck(createDeck())
+  const pair = deck.filter(c => c.rank === RIKKUN_PAIR_RANK).slice(0, 2)
+  const rest = deck.filter(c => !pair.includes(c))
+  const ordered = [...pair, ...rest]
+  return { players: dealHands(ordered, playerCount), remainingDeck: ordered.slice(playerCount * 2) }
 }
 
 export function useGame() {
@@ -73,7 +71,7 @@ export function useGame() {
 
   const deal = useCallback(() => {
     const { players, remainingDeck } = rikkunMode
-      ? dealRiggedForP1(playerCount)
+      ? dealPocketPairForP1(playerCount)
       : dealFair(playerCount)
 
     // Calculate initial equity
