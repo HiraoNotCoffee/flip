@@ -53,19 +53,40 @@ export function toYen(points: number, yen: number): number {
 }
 
 /**
- * 場代の割り勘。合計を人数で割り、1円単位で割り切れない分は前の人から1円ずつ足す
- * （全員の負担の合計がぴったり場代の合計になるように）。
+ * 場代を按分するときの各自の重み（いた時間）。
+ * 空欄の人は全体の時間いた扱い。全体の時間も空欄なら、入っている中で一番長い時間を使う。
+ * 誰の時間も入っていなければ全員同じ（＝均等割り）。
  */
-export function venueShares(total: number, people: number): number[] {
-  if (people <= 0) return []
-  const base = Math.floor(total / people)
-  const rest = total - base * people
-  return Array.from({ length: people }, (_, i) => base + (i < rest ? 1 : 0))
+export function venueWeights(hours: Cell[], fullHours: Cell): number[] {
+  const entered = hours.filter((h): h is number => h !== null)
+  const fill = fullHours ?? (entered.length > 0 ? Math.max(...entered) : 1)
+  return hours.map(h => h ?? fill)
 }
 
-/** 場代で各自がいくら得をしたか（払った額 − 割り勘の負担）。立て替えた人がプラスになる */
-export function venueBalance(paid: number[]): number[] {
+/**
+ * 場代の按分。合計を重み（いた時間）の比率で割る。1円単位で割り切れない分は、
+ * 端数の大きい人から1円ずつ足す（全員の負担の合計がぴったり場代の合計になるように）。
+ * 重みが全員 0 なら均等割りにする。
+ */
+export function venueShares(total: number, weights: number[]): number[] {
+  if (weights.length === 0) return []
+  // 1.5時間のような小数でも誤差が出ないよう、整数にしてから計算する
+  const scaled = weights.map(w => Math.max(0, Math.round(w * 100)))
+  const units = scaled.some(w => w > 0) ? scaled : scaled.map(() => 1)
+  const sum = units.reduce((a, b) => a + b, 0)
+  const shares = units.map(w => Math.floor((total * w) / sum))
+  const rest = total - shares.reduce((a, b) => a + b, 0)
+  units
+    .map((w, i) => ({ i, remainder: (total * w) % sum }))
+    .sort((a, b) => b.remainder - a.remainder || a.i - b.i)
+    .slice(0, rest)
+    .forEach(({ i }) => shares[i]++)
+  return shares
+}
+
+/** 場代で各自がいくら得をしたか（払った額 − 負担）。立て替えた人がプラスになる */
+export function venueBalance(paid: number[], weights: number[] = paid.map(() => 1)): number[] {
   const total = paid.reduce((s, v) => s + v, 0)
-  const shares = venueShares(total, paid.length)
+  const shares = venueShares(total, weights)
   return paid.map((p, i) => p - shares[i])
 }

@@ -616,3 +616,49 @@
   min-width: 0;
   font-size: 0.75rem;
 }
+
+/* -------------------------------------------------- 場代の時間按分 */
+.mjs-venue-full {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.mjs-hours-input {
+  width: 48px;
+  padding: 7px 6px;
+}
+
+.mjs-hours-readonly {
+  min-width: 32px;
+}
+
+.mjs-venue .mjs-venue-line > .mjs-yen-input:not(.mjs-hours-input) {
+  width: 84px;
+}
+
+.mjs-venue-share {
+  display: block;
+  font-size: 0.7rem;
+  color: #999;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjs-venue-head {
+  font-size: 0.68rem;
+  color: #888;
+}
+
+.mjs-venue-col-paid {
+  width: 104px;
+  text-align: right;
+}
+
+.mjs-venue-col-hours {
+  width: 62px;
+  text-align: right;
+  white-space: nowrap;
+}

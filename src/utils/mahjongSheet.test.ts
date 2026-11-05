@@ -5,6 +5,7 @@ import {
   rowSum,
   toYen,
   venueBalance,
+  venueWeights,
   venueShares,
   yenPerPoint,
 } from './mahjongSheet'
@@ -50,11 +51,11 @@ describe('点数表', () => {
 
 describe('場代', () => {
   test('割り切れるときは均等', () => {
-    expect(venueShares(8000, 4)).toEqual([2000, 2000, 2000, 2000])
+    expect(venueShares(8000, [1, 1, 1, 1])).toEqual([2000, 2000, 2000, 2000])
   })
 
   test('割り切れない分は前の人から1円ずつ。合計はぴったり', () => {
-    const shares = venueShares(7000, 3)
+    const shares = venueShares(7000, [1, 1, 1])
     expect(shares).toEqual([2334, 2333, 2333])
     expect(shares.reduce((a, b) => a + b, 0)).toBe(7000)
   })
@@ -64,6 +65,41 @@ describe('場代', () => {
     const b = venueBalance([3000, 2000, 0, 0])
     expect(b).toEqual([1750, 750, -1250, -1250])
     expect(b.reduce((x, y) => x + y, 0)).toBe(0)
+  })
+
+  test('いた時間の比率で按分する', () => {
+    // 6時間ずっといた人と3時間の人は 2:1
+    expect(venueShares(9000, [6, 3])).toEqual([6000, 3000])
+    expect(venueShares(12000, [6, 6, 6, 3, 3])).toEqual([3000, 3000, 3000, 1500, 1500])
+    expect(venueBalance([12000, 0, 0, 0, 0], [6, 6, 6, 3, 3])).toEqual([9000, -3000, -3000, -1500, -1500])
+  })
+
+  test('割り切れなくても、小数の時間でも、合計はぴったり', () => {
+    for (const [total, weights] of [
+      [10000, [5, 3.5, 2.25, 1]],
+      [7001, [1.5, 1.5, 1.5]],
+      [1, [3, 2, 1]],
+      [9999, [0.1, 0.2, 0.3, 7]],
+    ] as [number, number[]][]) {
+      const shares = venueShares(total, weights)
+      expect(shares.reduce((a, b) => a + b, 0)).toBe(total)
+      shares.forEach(v => expect(Number.isInteger(v)).toBe(true))
+    }
+  })
+
+  test('0時間の人は負担 0。全員 0 なら均等割り', () => {
+    expect(venueShares(6000, [3, 3, 0])).toEqual([3000, 3000, 0])
+    expect(venueShares(6000, [0, 0, 0])).toEqual([2000, 2000, 2000])
+  })
+
+  test('空欄の人は全体の時間いた扱い', () => {
+    expect(venueWeights([null, 3, null], 6)).toEqual([6, 3, 6])
+    // 全体の時間が空欄なら、入っている中で一番長い時間
+    expect(venueWeights([null, 3, 5], null)).toEqual([5, 3, 5])
+    // 0時間と入れた人は空欄と区別する
+    expect(venueWeights([0, null], 4)).toEqual([0, 4])
+    // 何も入っていなければ均等
+    expect(venueWeights([null, null], null)).toEqual([1, 1])
   })
 
   test('だれも払っていなければ 0', () => {

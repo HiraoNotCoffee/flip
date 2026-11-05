@@ -12,6 +12,7 @@ import {
   yenPerPoint,
   venueBalance,
   venueShares,
+  venueWeights,
   type Cell,
   type Rate,
 } from '../utils/mahjongSheet'
@@ -26,6 +27,10 @@ interface SheetData {
   customYen: number
   /** 場代を各自がいくら払ったか（円）。合計を全員で割り勘する */
   venuePaid: number[]
+  /** 場代の全体の時間（空欄なら入っている中で一番長い時間） */
+  venueFullHours: Cell
+  /** 各自のいた時間。空欄は全体の時間いた扱い。誰も入れなければ均等割り */
+  venueHours: Cell[]
   /** ご祝儀チップの枚数（±）。全員の合計は 0 になるはず */
   chips: number[]
   /** ご祝儀1枚の金額（円） */
@@ -51,6 +56,8 @@ function freshData(rate: Rate = 'tenpin'): SheetData {
     rate,
     customYen: DEFAULT_CUSTOM_YEN,
     venuePaid: Array.from({ length: DEFAULT_PLAYERS }, () => 0),
+    venueFullHours: null,
+    venueHours: emptyRow(DEFAULT_PLAYERS),
     chips: Array.from({ length: DEFAULT_PLAYERS }, () => 0),
     chipYen: DEFAULT_CHIP_YEN,
   }
@@ -75,6 +82,11 @@ function parseSheet(json: string): SheetData | null {
         venuePaid: Array.from({ length: columns }, (_, c) => {
           const v = parsed.venuePaid?.[c]
           return typeof v === 'number' && v > 0 ? v : 0
+        }),
+        venueFullHours: typeof parsed.venueFullHours === 'number' ? parsed.venueFullHours : null,
+        venueHours: Array.from({ length: columns }, (_, c) => {
+          const v = parsed.venueHours?.[c]
+          return typeof v === 'number' ? v : null
         }),
         chips: Array.from({ length: columns }, (_, c) => {
           const v = parsed.chips?.[c]
@@ -238,6 +250,43 @@ function YenField({
         const raw = e.target.value.replace(/[^0-9]/g, '')
         setDraft(raw)
         onChange(raw === '' ? 0 : Number(raw))
+      }}
+      onBlur={() => setDraft(null)}
+    />
+  )
+}
+
+/** 時間の入力欄（空欄あり・1.5 のような小数も可）。placeholder は空欄のときの扱いを見せる */
+function HoursField({
+  value,
+  onChange,
+  readOnly,
+  placeholder,
+}: {
+  value: Cell
+  onChange: (v: Cell) => void
+  readOnly: boolean
+  placeholder: string
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const display = draft ?? (value === null ? '' : String(value))
+  if (readOnly) return <span className="mjs-yen-readonly mjs-hours-readonly">{value ?? placeholder}</span>
+  return (
+    <input
+      className="mjs-yen-input mjs-hours-input"
+      type="text"
+      inputMode="decimal"
+      placeholder={placeholder}
+      value={display}
+      onFocus={e => {
+        setDraft(display)
+        e.currentTarget.select()
+      }}
+      onChange={e => {
+        const raw = e.target.value.replace(/[^0-9.]/g, '')
+        setDraft(raw)
+        const n = Number(raw)
+        onChange(raw === '' || raw === '.' || Number.isNaN(n) ? null : n)
       }}
       onBlur={() => setDraft(null)}
     />
@@ -531,14 +580,19 @@ export function MahjongLedger() {
     )
   }
 
-  const { names, rows, rate, customYen, venuePaid, chips, chipYen } = view
+  const { names, rows, rate, customYen, venuePaid, venueFullHours, venueHours, chips, chipYen } = view
   const yen = yenPerPoint(rate, customYen)
   const columns = names.length
   const totals = columnTotals(rows, columns)
   const displayName = (c: number) => names[c].trim() || `名前${c + 1}`
   const venueTotal = venuePaid.reduce((a, b) => a + b, 0)
-  const shares = venueShares(venueTotal, columns)
-  const venue = venueBalance(venuePaid)
+  const weights = venueWeights(venueHours, venueFullHours)
+  const shares = venueShares(venueTotal, weights)
+  const venue = venueBalance(venuePaid, weights)
+  const usesHours = venueFullHours !== null || venueHours.some(h => h !== null)
+  // 全体の時間より長くいたことになっている人がいれば、入力ミスの可能性がある
+  const hoursOver =
+    venueFullHours !== null && venueHours.some(h => h !== null && h > venueFullHours)
   const chipTotal = rowSum(chips) ?? 0
   const hasChips = chips.some(v => v !== 0)
   const chipYens = chips.map(n => Math.round(n * chipYen))
@@ -570,6 +624,7 @@ export function MahjongLedger() {
             names: [...prev.names, ''],
             rows: prev.rows.map(r => [...r, null]),
             venuePaid: [...prev.venuePaid, 0],
+            venueHours: [...prev.venueHours, null],
             chips: [...prev.chips, 0],
           },
     )
@@ -583,12 +638,16 @@ export function MahjongLedger() {
             names: prev.names.slice(0, -1),
             rows: prev.rows.map(r => r.slice(0, -1)),
             venuePaid: prev.venuePaid.slice(0, -1),
+            venueHours: prev.venueHours.slice(0, -1),
             chips: prev.chips.slice(0, -1),
           },
     )
 
   const setVenuePaid = (c: number, yen: number) =>
     setData(prev => ({ ...prev, venuePaid: prev.venuePaid.map((v, i) => (i === c ? yen : v)) }))
+
+  const setVenueHours = (c: number, h: Cell) =>
+    setData(prev => ({ ...prev, venueHours: prev.venueHours.map((v, i) => (i === c ? h : v)) }))
 
   const setChips = (c: number, n: number) =>
     setData(prev => ({ ...prev, chips: prev.chips.map((v, i) => (i === c ? n : v)) }))
@@ -605,6 +664,7 @@ export function MahjongLedger() {
     names.some(n => n !== '') ||
     rows.some(r => r.some(v => v !== null)) ||
     venueTotal > 0 ||
+    usesHours ||
     hasChips
 
   return (
@@ -819,23 +879,54 @@ export function MahjongLedger() {
             <h3>場代</h3>
             {venueTotal > 0 && (
               <span className="mjs-venue-summary">
-                合計 ¥{venueTotal.toLocaleString()} / 1人 ¥
-                {shares[0] === shares[columns - 1]
-                  ? shares[0].toLocaleString()
-                  : `${shares[columns - 1].toLocaleString()}〜${shares[0].toLocaleString()}`}
+                合計 ¥{venueTotal.toLocaleString()}
               </span>
             )}
           </div>
           {!readOnly && (
-            <p className="mjs-settle-how">払った人の欄に、払った金額を入れてください。合計を全員で割り勘して精算に含めます。</p>
+            <p className="mjs-settle-how">
+              払った人の欄に金額を入れてください。時間を入れなければ均等割り、入れるといた時間の比率で按分します（空欄の人は全体の時間いた扱い）。
+            </p>
           )}
+          {(!readOnly || usesHours) && (
+            <div className="mjs-venue-full">
+              <span>全体の時間</span>
+              <HoursField
+                value={venueFullHours}
+                onChange={h => setData(prev => ({ ...prev, venueFullHours: h }))}
+                readOnly={readOnly}
+                placeholder="-"
+              />
+              <span className="mjs-venue-unit">時間</span>
+            </div>
+          )}
+          <div className="mjs-venue-line mjs-venue-head">
+            <span className="mjs-venue-name" />
+            <span className="mjs-venue-col-paid">払った額</span>
+            <span className="mjs-venue-col-hours">いた時間</span>
+          </div>
           {names.map((_, c) => (
             <div key={c} className="mjs-venue-line">
-              <span className="mjs-venue-name">{displayName(c)}</span>
+              <span className="mjs-venue-name">
+                {displayName(c)}
+                {venueTotal > 0 && (
+                  <span className="mjs-venue-share">負担 ¥{shares[c].toLocaleString()}</span>
+                )}
+              </span>
               <YenField value={venuePaid[c]} onChange={v => setVenuePaid(c, v)} readOnly={readOnly} />
               <span className="mjs-venue-unit">円</span>
+              <HoursField
+                value={venueHours[c]}
+                onChange={h => setVenueHours(c, h)}
+                readOnly={readOnly}
+                placeholder={usesHours ? String(weights[c]) : '-'}
+              />
+              <span className="mjs-venue-unit">h</span>
             </div>
           ))}
+          {hoursOver && (
+            <p className="mjs-settle-warn">全体の時間より長くいたことになっている人がいます。</p>
+          )}
         </div>
 
         <div className="mjs-settle">
