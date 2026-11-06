@@ -14,8 +14,8 @@ export interface ChipImageInput {
   totalFinalChips: number
   /** 最終チップ + レーキ − バイインの合計。0 なら合っている */
   chipDiff: number
-  settlement1: Transfer[]
-  settlement2: { hub: string | null; rows: Transfer[] }
+  /** 精算（送金の回数がいちばん少なくなる組み合わせ） */
+  settlement: Transfer[]
 }
 
 const PAD = 28
@@ -36,8 +36,7 @@ export function renderChipImage(input: ChipImageInput, date = new Date()): HTMLC
     ROW_H + // 見出し
     input.players.length * ROW_H + 12 +
     summaryLines * 30 + 44 + // 合計と一致チェック
-    transfersHeight(input.settlement1) +
-    transfersHeight(input.settlement2.rows) +
+    transfersHeight(input.settlement) +
     PAD + 24
 
   const canvas = document.createElement('canvas')
@@ -135,7 +134,7 @@ export function renderChipImage(input: ChipImageInput, date = new Date()): HTMLC
   y += 44
 
   // 精算
-  const transfers = (title: string, note: string, rows: Transfer[], hub: string | null) => {
+  const transfers = (title: string, note: string, rows: Transfer[]) => {
     y += 28
     g.textAlign = 'left'
     g.font = `bold 20px ${FONT}`
@@ -154,7 +153,7 @@ export function renderChipImage(input: ChipImageInput, date = new Date()): HTMLC
       return
     }
     rows.forEach(t => {
-      g.fillStyle = t.from === hub ? 'rgba(88,101,242,0.2)' : COLORS.panel
+      g.fillStyle = COLORS.panel
       g.beginPath()
       g.roundRect(PAD, y, tableW, 38, 8)
       g.fill()
@@ -174,15 +173,7 @@ export function renderChipImage(input: ChipImageInput, date = new Date()): HTMLC
       y += 44
     })
   }
-  transfers('精算 1', '送金の回数がいちばん少なくなる組み合わせ', input.settlement1, null)
-  transfers(
-    '精算 2',
-    input.settlement2.hub
-      ? `負けた人は全員 ${input.settlement2.hub} に払い、${input.settlement2.hub} が他の勝った人へ配る`
-      : '一番勝った人がまとめる方法',
-    input.settlement2.rows,
-    input.settlement2.hub,
-  )
+  transfers('精算', '送金の回数がいちばん少なくなる組み合わせ', input.settlement)
 
   g.textAlign = 'right'
   g.font = `12px ${FONT}`

@@ -636,8 +636,7 @@ export function ChipCalculator() {
         totalBuyInChips,
         totalFinalChips,
         chipDiff,
-        settlement1: settlements,
-        settlement2: hubSettlements,
+        settlement: settlements,
       })
       const result = await saveCanvasImage(canvas, `chips_${dateStamp()}.png`, 'チップ計算')
       setImageStatus(result === 'downloaded' ? '画像を保存しました' : null)
