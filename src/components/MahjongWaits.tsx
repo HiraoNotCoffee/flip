@@ -91,12 +91,35 @@ export function MahjongWaits() {
             クリア
           </button>
         </div>
-        <div className="mjw-hand">
-          {sorted.length === 0 && <span className="mjw-empty">下の牌をタップして手牌を入れてください</span>}
-          {sorted.map((kind, i) => (
-            <TileView key={i} tile={{ kind }} size={30} onClick={() => removeAt(i)} />
-          ))}
+        {/* 卓の上に14枚分の枠を1列に並べる（空いている枠は点線） */}
+        <div className="mjw-rack">
+          {Array.from({ length: MAX_TILES }, (_, i) =>
+            i < sorted.length ? (
+              <div key={i} className="mjw-rack-slot">
+                <TileView tile={{ kind: sorted[i] }} size={40} onClick={() => removeAt(i)} />
+              </div>
+            ) : (
+              <div key={i} className="mjw-rack-slot empty" />
+            ),
+          )}
         </div>
+        {sorted.length === 0 && <p className="mjw-empty">下の牌をタップして手牌を入れてください</p>}
+      </div>
+
+      <div className="mjw-pad">
+        {ROWS.map(row => (
+          <div key={row.label} className="mjw-pad-row">
+            {row.kinds.map(kind => (
+              <TileView
+                key={kind}
+                tile={{ kind }}
+                size={36}
+                onClick={() => add(kind)}
+                disabled={total >= MAX_TILES || counts[kind] >= 4}
+              />
+            ))}
+          </div>
+        ))}
       </div>
 
       <div className="mjw-result">
@@ -148,21 +171,6 @@ export function MahjongWaits() {
         )}
       </div>
 
-      <div className="mjw-pad">
-        {ROWS.map(row => (
-          <div key={row.label} className={`mjw-pad-row ${row.kinds.length === 7 ? 'honor' : ''}`}>
-            {row.kinds.map(kind => (
-              <TileView
-                key={kind}
-                tile={{ kind }}
-                size={36}
-                onClick={() => add(kind)}
-                disabled={total >= MAX_TILES || counts[kind] >= 4}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
