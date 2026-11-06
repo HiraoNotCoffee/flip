@@ -138,3 +138,34 @@
   padding: 7px;
   font-size: 0.85rem;
 }
+
+/* 3人打ち（翻だけの固定の点数表） */
+.mjt-sanma th,
+.mjt-sanma td {
+  padding: 8px 4px;
+}
+
+.mjt-sanma thead .mjt-sanma-dealer {
+  color: #ff8a80;
+  font-size: 1rem;
+}
+
+.mjt-sanma thead .mjt-sanma-child {
+  color: #7dffb0;
+  font-size: 1rem;
+}
+
+.mjt-sanma .mjt-sanma-han {
+  width: 70px;
+  background: rgba(52, 152, 219, 0.15);
+  color: #cfe6ff;
+  font-size: 0.9rem;
+}
+
+.mjt-sanma .mjt-ron {
+  font-size: 1.1rem;
+}
+
+.mjt-sanma .mjt-tsumo {
+  font-size: 0.8rem;
+}

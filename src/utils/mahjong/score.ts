@@ -58,21 +58,3 @@ export function calcPayments(
     tsumoFromNonDealer,
   }
 }
-
-/**
- * 三人麻雀・ツモ損なしのツモの支払い。
- * 4人なら北家が払う分を、残りの2人で折半して上乗せする（100点未満は切り上げ）。
- * 子のツモ: 子 1.5倍・親 2.5倍（基本点に対して）、親のツモ: 2人がそれぞれ 3倍。
- */
-export function calcSanmaTsumo(
-  base: number,
-  isDealer: boolean
-): { fromNonDealer?: number; fromDealer?: number; fromEach?: number; total: number } {
-  if (isDealer) {
-    const each = ceil100(base * 3)
-    return { fromEach: each, total: each * 2 }
-  }
-  const fromNonDealer = ceil100(base * 1.5)
-  const fromDealer = ceil100(base * 2.5)
-  return { fromNonDealer, fromDealer, total: fromNonDealer + fromDealer }
-}
