@@ -13,7 +13,9 @@ import {
   venueBalance,
   venueShares,
   venueWeights,
+  orderBalance,
   type Cell,
+  type Order,
   type Rate,
 } from '../utils/mahjongSheet'
 import { hubTransfers, minimalTransfers } from '../utils/settlement'
@@ -37,6 +39,8 @@ interface SheetData {
   chips: number[]
   /** ご祝儀1枚の金額（円） */
   chipYen: number
+  /** 個別に頼んだもの（焼きそばなど） */
+  orders: Order[]
 }
 
 const STORAGE_KEY = 'mahjong-sheet-data'
@@ -62,6 +66,7 @@ function freshData(rate: Rate = 'tenpin'): SheetData {
     venueHours: emptyRow(DEFAULT_PLAYERS),
     chips: Array.from({ length: DEFAULT_PLAYERS }, () => 0),
     chipYen: DEFAULT_CHIP_YEN,
+    orders: [],
   }
 }
 
@@ -96,6 +101,16 @@ function parseSheet(json: string): SheetData | null {
         }),
         chipYen:
           typeof parsed.chipYen === 'number' && parsed.chipYen >= 0 ? parsed.chipYen : DEFAULT_CHIP_YEN,
+        orders: Array.isArray(parsed.orders)
+          ? parsed.orders.map(o => ({
+              label: String(o?.label ?? ''),
+              yen: typeof o?.yen === 'number' && o.yen > 0 ? o.yen : 0,
+              payer: typeof o?.payer === 'number' && o.payer >= 0 && o.payer < columns ? o.payer : 0,
+              eaters: Array.isArray(o?.eaters)
+                ? o.eaters.filter((i): i is number => typeof i === 'number' && i >= 0 && i < columns)
+                : [],
+            }))
+          : [],
       }
     }
   } catch {
@@ -583,7 +598,10 @@ export function MahjongLedger() {
     )
   }
 
-  const { names, rows, rate, customYen, venuePaid, venueFullHours, venueHours, chips, chipYen } = view
+  const { names, rows, rate, customYen, venuePaid, venueFullHours, venueHours, chips, chipYen, orders } = view
+  const orderTotal = orders.reduce((s, o) => s + o.yen, 0)
+  const hasOrders = orderTotal > 0
+  const ordered = orderBalance(orders, names.length)
   const yen = yenPerPoint(rate, customYen)
   const columns = names.length
   const totals = columnTotals(rows, columns)
@@ -600,7 +618,7 @@ export function MahjongLedger() {
   const hasChips = chips.some(v => v !== 0)
   const chipYens = chips.map(n => Math.round(n * chipYen))
   // 点数の金額に、ご祝儀と場代（払った額 − 割り勘の負担）を足したものが最終的な収支
-  const finals = totals.map((t, c) => toYen(t, yen) + chipYens[c] + venue[c])
+  const finals = totals.map((t, c) => toYen(t, yen) + chipYens[c] + venue[c] + ordered[c])
   const balances = finals.map((amount, c) => ({ name: displayName(c), amount }))
   const yenGap = balances.reduce((sum, b) => sum + b.amount, 0)
   const pointGap = rowSum(totals) ?? 0
@@ -637,6 +655,19 @@ export function MahjongLedger() {
         settleLabel: method === 'minimal' ? '回数が少ない組み合わせ' : 'トップにまとめる',
         warning: gapWarning,
         chipDetail: hasChips ? { counts: chips, yenPerChip: chipYen } : null,
+        orderDetail: hasOrders
+          ? {
+              balance: ordered,
+              items: orders
+                .filter(o => o.yen > 0)
+                .map(o => ({
+                  label: o.label.trim() || '注文',
+                  yen: o.yen,
+                  payer: displayName(o.payer),
+                  eaters: o.eaters.length === 0 ? '全員' : o.eaters.map(displayName).join('・'),
+                })),
+            }
+          : null,
         venueDetail:
           venueTotal > 0
             ? {
@@ -678,6 +709,7 @@ export function MahjongLedger() {
             venuePaid: [...prev.venuePaid, 0],
             venueHours: [...prev.venueHours, null],
             chips: [...prev.chips, 0],
+            orders: prev.orders,
           },
     )
 
@@ -692,6 +724,12 @@ export function MahjongLedger() {
             venuePaid: prev.venuePaid.slice(0, -1),
             venueHours: prev.venueHours.slice(0, -1),
             chips: prev.chips.slice(0, -1),
+            // いなくなった人の分は外す（払った人だったら最初の人にする）
+            orders: prev.orders.map(o => ({
+              ...o,
+              payer: o.payer >= prev.names.length - 1 ? 0 : o.payer,
+              eaters: o.eaters.filter(i => i < prev.names.length - 1),
+            })),
           },
     )
 
@@ -700,6 +738,30 @@ export function MahjongLedger() {
 
   const setVenueHours = (c: number, h: Cell) =>
     setData(prev => ({ ...prev, venueHours: prev.venueHours.map((v, i) => (i === c ? h : v)) }))
+
+  const updateOrder = (index: number, patch: Partial<Order>) =>
+    setData(prev => ({ ...prev, orders: prev.orders.map((o, i) => (i === index ? { ...o, ...patch } : o)) }))
+
+  const addOrder = () =>
+    setData(prev => {
+      // 払った人は、場代をいちばん多く払った人（いなければ最初の人）にしておく
+      const maxPaid = Math.max(...prev.venuePaid)
+      const payer = maxPaid > 0 ? prev.venuePaid.indexOf(maxPaid) : 0
+      return { ...prev, orders: [...prev.orders, { label: '', yen: 0, payer, eaters: [] }] }
+    })
+
+  const removeOrder = (index: number) =>
+    setData(prev => ({ ...prev, orders: prev.orders.filter((_, i) => i !== index) }))
+
+  const toggleEater = (index: number, c: number) =>
+    setData(prev => ({
+      ...prev,
+      orders: prev.orders.map((o, i) => {
+        if (i !== index) return o
+        const eaters = o.eaters.includes(c) ? o.eaters.filter(x => x !== c) : [...o.eaters, c].sort((a, b) => a - b)
+        return { ...o, eaters }
+      }),
+    }))
 
   const setChips = (c: number, n: number) =>
     setData(prev => ({ ...prev, chips: prev.chips.map((v, i) => (i === c ? n : v)) }))
@@ -717,7 +779,8 @@ export function MahjongLedger() {
     rows.some(r => r.some(v => v !== null)) ||
     venueTotal > 0 ||
     usesHours ||
-    hasChips
+    hasChips ||
+    hasOrders
 
   return (
     <div className="mjs">
@@ -827,7 +890,18 @@ export function MahjongLedger() {
                 <td className="mjs-sum" />
               </tr>
             )}
-            {(venueTotal > 0 || hasChips) && (
+            {hasOrders && (
+              <tr className="mjs-venue-row">
+                <th className="mjs-th-no">注文</th>
+                {ordered.map((v, c) => (
+                  <td key={c} className={v > 0 ? 'positive' : v < 0 ? 'negative' : ''}>
+                    {signed(v)}
+                  </td>
+                ))}
+                <td className="mjs-sum" />
+              </tr>
+            )}
+            {(venueTotal > 0 || hasChips || hasOrders) && (
               <tr className="mjs-final-row">
                 <th className="mjs-th-no">収支</th>
                 {finals.map((v, c) => (
@@ -981,6 +1055,80 @@ export function MahjongLedger() {
           )}
         </div>
 
+        <div className="mjs-venue mjs-orders">
+          <div className="mjs-venue-header">
+            <h3>個別の注文</h3>
+            {hasOrders && <span className="mjs-venue-summary">合計 ¥{orderTotal.toLocaleString()}</span>}
+          </div>
+          {!readOnly && (
+            <p className="mjs-settle-how">
+              焼きそばなど、個別に頼んだものを入れてください。食べた人で割り勘し、払った人が立て替えた分として精算に含めます（食べた人を選ばなければ全員）。
+            </p>
+          )}
+          {orders.length === 0 && readOnly && <p className="mjs-settle-how">なし</p>}
+          {orders.map((o, i) => (
+            <div key={i} className="mjs-order">
+              <div className="mjs-order-top">
+                {readOnly ? (
+                  <span className="mjs-order-label">{o.label.trim() || '注文'}</span>
+                ) : (
+                  <input
+                    className="mjs-order-label-input"
+                    value={o.label}
+                    placeholder="焼きそば"
+                    onChange={e => updateOrder(i, { label: e.target.value })}
+                  />
+                )}
+                <YenField value={o.yen} onChange={v => updateOrder(i, { yen: v })} readOnly={readOnly} />
+                <span className="mjs-venue-unit">円</span>
+                {!readOnly && (
+                  <button className="mjs-order-remove" onClick={() => removeOrder(i)} aria-label="この注文を消す">
+                    ×
+                  </button>
+                )}
+              </div>
+              <div className="mjs-order-row">
+                <span className="mjs-order-key">食べた人</span>
+                <div className="mjs-order-people">
+                  {names.map((_, c) => (
+                    <button
+                      key={c}
+                      className={`mjs-chip-toggle ${o.eaters.includes(c) ? 'on' : ''} ${o.eaters.length === 0 ? 'all' : ''}`}
+                      onClick={() => toggleEater(i, c)}
+                      disabled={readOnly}
+                    >
+                      {displayName(c)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mjs-order-row">
+                <span className="mjs-order-key">払った人</span>
+                {readOnly ? (
+                  <span>{displayName(o.payer)}</span>
+                ) : (
+                  <select
+                    className="mjs-order-payer"
+                    value={o.payer}
+                    onChange={e => updateOrder(i, { payer: Number(e.target.value) })}
+                  >
+                    {names.map((_, c) => (
+                      <option key={c} value={c}>
+                        {displayName(c)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+          ))}
+          {!readOnly && (
+            <button className="mjs-add-row" onClick={addOrder}>
+              ＋ 注文を追加
+            </button>
+          )}
+        </div>
+
         <div className="mjs-settle">
           <div className="mjs-settle-header">
             <h3>精算</h3>
@@ -1051,7 +1199,7 @@ export function MahjongLedger() {
           <div className="confirm-modal" onClick={e => e.stopPropagation()}>
             <p>
               {confirm.kind === 'reset'
-                ? '名前・全ての点数・ご祝儀・場代を消しますか？'
+                ? '名前・全ての点数・ご祝儀・場代・注文を消しますか？'
                 : `第${confirm.index + 1}半荘の行を消しますか？`}
             </p>
             <div className="confirm-buttons">

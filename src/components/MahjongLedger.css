@@ -685,3 +685,110 @@
   font-size: 0.8rem;
   color: #aaa;
 }
+
+/* -------------------------------------------------- 個別の注文 */
+.mjs-order {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.mjs-order-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mjs-order-label-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.95rem;
+}
+
+.mjs-order-label-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.mjs-order-label {
+  flex: 1;
+  font-weight: 700;
+}
+
+.mjs-order .mjs-yen-input {
+  width: 90px;
+}
+
+.mjs-order-remove {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(231, 76, 60, 0.2);
+  color: #ff8a80;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.mjs-order-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.mjs-order-key {
+  flex: 0 0 56px;
+  padding-top: 5px;
+  font-size: 0.72rem;
+  color: #999;
+}
+
+.mjs-order-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mjs-chip-toggle {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: none;
+  color: #aaa;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.mjs-chip-toggle.on {
+  border-color: #3498db;
+  background: rgba(52, 152, 219, 0.3);
+  color: white;
+}
+
+/* 誰も選んでいない＝全員。うっすら全員が選ばれているように見せる */
+.mjs-chip-toggle.all {
+  border-color: rgba(52, 152, 219, 0.5);
+  color: #ccc;
+}
+
+.mjs-chip-toggle:disabled {
+  cursor: default;
+}
+
+.mjs-order-payer {
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: #1d1d2b;
+  color: white;
+  font-size: 0.85rem;
+}

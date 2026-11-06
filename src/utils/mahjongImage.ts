@@ -26,6 +26,12 @@ export interface SheetImageInput {
   warning: string | null
   /** ご祝儀の内訳（枚数と1枚の金額）。無ければ null */
   chipDetail: { counts: number[]; yenPerChip: number } | null
+  /** 個別の注文。無ければ null */
+  orderDetail: {
+    /** 各自の得（立て替えた額 − 自分の分） */
+    balance: number[]
+    items: { label: string; yen: number; payer: string; eaters: string }[]
+  } | null
   /** 場代の内訳。無ければ null */
   venueDetail: {
     total: number
@@ -61,7 +67,10 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   ]
   if (input.chipYens) footRows.push({ label: '祝儀', values: input.chipYens })
   if (input.venue) footRows.push({ label: '場代', values: input.venue })
-  if (input.chipYens || input.venue) footRows.push({ label: '収支', values: input.finals, strong: true })
+  if (input.orderDetail) footRows.push({ label: '注文', values: input.orderDetail.balance })
+  if (input.chipYens || input.venue || input.orderDetail) {
+    footRows.push({ label: '収支', values: input.finals, strong: true })
+  }
 
   // 内訳（ご祝儀の枚数、場代を誰がいくら払ったか・いた時間・負担）
   type DetailRow = { label: string; cells: string[]; colors?: string[] }
@@ -86,7 +95,14 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
         (v.hours ? `（${v.fullHours !== null ? `全体${v.fullHours}時間・` : ''}いた時間で按分）` : '（均等割り）'),
     )
   }
-  const detailH = detailRows.length > 0 ? 28 + 26 + (detailRows.length + 1) * ROW_H + 12 : 0
+  const orderItems = input.orderDetail?.items ?? []
+  if (orderItems.length > 0) {
+    detailNotes.push(`注文 合計 ¥${orderItems.reduce((sum, o) => sum + o.yen, 0).toLocaleString()}`)
+  }
+  const detailH =
+    detailRows.length > 0 || orderItems.length > 0
+      ? 28 + 26 + (detailRows.length > 0 ? (detailRows.length + 1) * ROW_H : 0) + orderItems.length * 30 + 12
+      : 0
 
   const settleLines = Math.max(1, input.transfers.length)
   const height =
@@ -187,7 +203,7 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   })
   y += 12
 
-  if (detailRows.length > 0) {
+  if (detailRows.length > 0 || orderItems.length > 0) {
     y += 28
     g.textAlign = 'left'
     g.font = `bold 20px ${FONT}`
@@ -197,30 +213,44 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
     g.fillStyle = COLORS.sub
     g.fillText(fit(g, detailNotes.join(' ・ '), width - PAD * 2 - 52), PAD + 52, y + 1)
     y += 26
-    // 列は点数表と同じ位置にそろえる
-    g.fillStyle = COLORS.panel
-    g.fillRect(left, y, tableW, ROW_H)
-    g.font = `bold 14px ${FONT}`
-    g.fillStyle = COLORS.text
-    g.textAlign = 'center'
-    input.names.forEach((name, c) => g.fillText(fit(g, name, COL - 10), cellX(c) + COL / 2, y + ROW_H / 2))
-    y += ROW_H
-    detailRows.forEach(({ label, cells, colors }, i) => {
-      if (i % 2 === 1) {
-        g.fillStyle = 'rgba(255,255,255,0.03)'
-        g.fillRect(left, y, tableW, ROW_H)
-      }
-      g.font = `bold 13px ${FONT}`
-      g.fillStyle = COLORS.sub
+    if (detailRows.length > 0) {
+      // 列は点数表と同じ位置にそろえる
+      g.fillStyle = COLORS.panel
+      g.fillRect(left, y, tableW, ROW_H)
+      g.font = `bold 14px ${FONT}`
+      g.fillStyle = COLORS.text
       g.textAlign = 'center'
-      g.fillText(label, left + NO_COL / 2, y + ROW_H / 2)
-      g.font = `16px ${FONT}`
-      g.textAlign = 'right'
-      cells.forEach((text, c) => {
-        g.fillStyle = colors?.[c] ?? COLORS.text
-        g.fillText(fit(g, text, COL - 16), cellX(c) + COL - 14, y + ROW_H / 2)
-      })
+      input.names.forEach((name, c) => g.fillText(fit(g, name, COL - 10), cellX(c) + COL / 2, y + ROW_H / 2))
       y += ROW_H
+      detailRows.forEach(({ label, cells, colors }, i) => {
+        if (i % 2 === 1) {
+          g.fillStyle = 'rgba(255,255,255,0.03)'
+          g.fillRect(left, y, tableW, ROW_H)
+        }
+        g.font = `bold 13px ${FONT}`
+        g.fillStyle = COLORS.sub
+        g.textAlign = 'center'
+        g.fillText(label, left + NO_COL / 2, y + ROW_H / 2)
+        g.font = `16px ${FONT}`
+        g.textAlign = 'right'
+        cells.forEach((text, c) => {
+          g.fillStyle = colors?.[c] ?? COLORS.text
+          g.fillText(fit(g, text, COL - 16), cellX(c) + COL - 14, y + ROW_H / 2)
+        })
+        y += ROW_H
+      })
+    }
+    // 個別の注文（品名・金額・食べた人・払った人）
+    orderItems.forEach(item => {
+      g.textAlign = 'left'
+      g.font = `15px ${FONT}`
+      g.fillStyle = COLORS.text
+      const head = `${item.label} ¥${item.yen.toLocaleString()}`
+      g.fillText(fit(g, head, 200), PAD + 4, y + 15)
+      g.fillStyle = COLORS.sub
+      g.font = `13px ${FONT}`
+      g.fillText(fit(g, `${item.eaters} の分 ・ ${item.payer} が払った`, width - PAD * 2 - 220), PAD + 214, y + 15)
+      y += 30
     })
     y += 12
   }

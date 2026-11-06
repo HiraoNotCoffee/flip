@@ -4,6 +4,7 @@ import {
   rowStatus,
   rowSum,
   toYen,
+  orderBalance,
   venueBalance,
   venueWeights,
   venueShares,
@@ -104,5 +105,38 @@ describe('場代', () => {
 
   test('だれも払っていなければ 0', () => {
     expect(venueBalance([0, 0, 0])).toEqual([0, 0, 0])
+  })
+})
+
+describe('個別の注文', () => {
+  test('1人で食べたものを別の人が払った', () => {
+    // 焼きそば 800円を A が食べて B が払った
+    expect(orderBalance([{ label: '焼きそば', yen: 800, payer: 1, eaters: [0] }], 4)).toEqual([-800, 800, 0, 0])
+  })
+
+  test('複数人で割り勘。端数も合計ぴったり', () => {
+    const b = orderBalance([{ label: 'ピザ', yen: 1000, payer: 0, eaters: [0, 1, 2] }], 4)
+    expect(b).toEqual([1000 - 334, -333, -333, 0])
+    expect(b.reduce((x, y) => x + y, 0)).toBe(0)
+  })
+
+  test('食べた人が空なら全員で割る', () => {
+    expect(orderBalance([{ label: '飲み物', yen: 2000, payer: 2, eaters: [] }], 4)).toEqual([-500, -500, 1500, -500])
+  })
+
+  test('自分で頼んで自分で払ったら 0、いくつあっても合計は 0', () => {
+    const orders = [
+      { label: '焼きそば', yen: 800, payer: 0, eaters: [0] },
+      { label: 'カレー', yen: 900, payer: 1, eaters: [2] },
+      { label: 'ポテト', yen: 501, payer: 3, eaters: [0, 3] },
+    ]
+    const b = orderBalance(orders, 4)
+    expect(b).toEqual([-251, 900, -900, 251])
+    expect(b.reduce((x, y) => x + y, 0)).toBe(0)
+  })
+
+  test('金額 0 や、いなくなった人の注文は無視', () => {
+    expect(orderBalance([{ label: '', yen: 0, payer: 0, eaters: [1] }], 3)).toEqual([0, 0, 0])
+    expect(orderBalance([{ label: 'x', yen: 500, payer: 5, eaters: [0] }], 3)).toEqual([0, 0, 0])
   })
 })

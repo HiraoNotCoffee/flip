@@ -90,3 +90,29 @@ export function venueBalance(paid: number[], weights: number[] = paid.map(() => 
   const shares = venueShares(total, weights)
   return paid.map((p, i) => p - shares[i])
 }
+
+/** 個別に頼んだもの（焼きそばなど）。食べた人で割り勘し、払った人が立て替える */
+export interface Order {
+  label: string
+  yen: number
+  /** 払った人（列の番号） */
+  payer: number
+  /** 食べた人（列の番号）。空なら全員 */
+  eaters: number[]
+}
+
+/** 注文で各自がいくら得をしたか（立て替えた額 − 自分が食べた分）。全員の合計は 0 */
+export function orderBalance(orders: Order[], people: number): number[] {
+  const balance = new Array<number>(people).fill(0)
+  for (const o of orders) {
+    if (o.yen <= 0 || o.payer < 0 || o.payer >= people) continue
+    const eaters = o.eaters.filter(i => i >= 0 && i < people)
+    const weights = Array.from({ length: people }, (_, i) =>
+      eaters.length === 0 || eaters.includes(i) ? 1 : 0,
+    )
+    const shares = venueShares(o.yen, weights)
+    balance[o.payer] += o.yen
+    shares.forEach((s, i) => (balance[i] -= s))
+  }
+  return balance
+}
