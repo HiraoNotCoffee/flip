@@ -133,3 +133,8 @@
   color: #888;
   line-height: 1.6;
 }
+
+.mjt-players button {
+  padding: 7px;
+  font-size: 0.85rem;
+}
