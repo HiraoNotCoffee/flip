@@ -2,11 +2,10 @@ import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useGame } from './hooks/useGame'
 import { CardView } from './components/CardView'
 import { ChipCalculator } from './components/ChipCalculator'
-import { GtoRange } from './components/GtoRange'
 import { Blackjack } from './components/Blackjack'
-import { HandBuilder } from './components/HandBuilder'
-import { Mahjong } from './components/Mahjong'
 import { MahjongLedger } from './components/MahjongLedger'
+import { MahjongScoreTable } from './components/MahjongScoreTable'
+import { MahjongWaits } from './components/MahjongWaits'
 import { ShotClock, SHOT_CLOCK_OPTIONS } from './components/ShotClock'
 
 // three.js と物理演算で重いので、開いたときだけ読み込む
@@ -14,7 +13,7 @@ const Chinchiro = lazy(() => import('./components/Chinchiro').then(m => ({ defau
 import { checkForUpdate, superReload } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip' | 'gto' | 'blackjack' | 'hh' | 'mahjong' | 'mjledger' | 'shotclock' | 'chinchiro'
+type Page = 'flip' | 'chip' | 'blackjack' | 'mjledger' | 'mjtable' | 'mjwaits' | 'shotclock' | 'chinchiro'
 
 function App() {
   const {
@@ -38,11 +37,10 @@ function App() {
     if (/[#&]mj=/.test(window.location.hash)) return 'mjledger'
     const saved = localStorage.getItem('flip-app-page')
     if (saved === 'chip') return 'chip'
-    if (saved === 'gto') return 'gto'
     if (saved === 'blackjack') return 'blackjack'
-    if (saved === 'hh') return 'hh'
-    if (saved === 'mahjong') return 'mahjong'
     if (saved === 'mjledger') return 'mjledger'
+    if (saved === 'mjtable') return 'mjtable'
+    if (saved === 'mjwaits') return 'mjwaits'
     if (saved === 'shotclock') return 'shotclock'
     if (saved === 'chinchiro') return 'chinchiro'
     return 'flip'
@@ -385,10 +383,9 @@ function App() {
           <h1>{
             page === 'flip' ? 'Texas Holdem Flipout' :
             page === 'chip' ? 'Chip Calculator' :
-            page === 'gto' ? 'GTO Range' :
-            page === 'hh' ? 'HH Export' :
-            page === 'mahjong' ? '麻雀点数計算' :
             page === 'mjledger' ? '麻雀収支計算' :
+            page === 'mjtable' ? '麻雀点数表' :
+            page === 'mjwaits' ? '麻雀多面張チェッカー' :
             page === 'shotclock' ? 'Shot Clock' :
             page === 'chinchiro' ? 'ちんちろ' :
             'Blackjack Count'
@@ -462,34 +459,28 @@ function App() {
               Chip Calculator
             </button>
             <button
-              className={`menu-item ${page === 'gto' ? 'active' : ''}`}
-              onClick={() => selectPage('gto')}
-            >
-              GTO Range
-            </button>
-            <button
               className={`menu-item ${page === 'blackjack' ? 'active' : ''}`}
               onClick={() => selectPage('blackjack')}
             >
               Blackjack
             </button>
             <button
-              className={`menu-item ${page === 'hh' ? 'active' : ''}`}
-              onClick={() => selectPage('hh')}
-            >
-              HH Export
-            </button>
-            <button
-              className={`menu-item ${page === 'mahjong' ? 'active' : ''}`}
-              onClick={() => selectPage('mahjong')}
-            >
-              麻雀点数計算
-            </button>
-            <button
               className={`menu-item ${page === 'mjledger' ? 'active' : ''}`}
               onClick={() => selectPage('mjledger')}
             >
               麻雀収支計算
+            </button>
+            <button
+              className={`menu-item ${page === 'mjtable' ? 'active' : ''}`}
+              onClick={() => selectPage('mjtable')}
+            >
+              麻雀点数表
+            </button>
+            <button
+              className={`menu-item ${page === 'mjwaits' ? 'active' : ''}`}
+              onClick={() => selectPage('mjwaits')}
+            >
+              麻雀多面張チェッカー
             </button>
             <button
               className={`menu-item ${page === 'shotclock' ? 'active' : ''}`}
@@ -544,14 +535,12 @@ function App() {
         </>
       ) : page === 'chip' ? (
         <ChipCalculator />
-      ) : page === 'gto' ? (
-        <GtoRange />
-      ) : page === 'hh' ? (
-        <HandBuilder />
-      ) : page === 'mahjong' ? (
-        <Mahjong />
       ) : page === 'mjledger' ? (
         <MahjongLedger />
+      ) : page === 'mjtable' ? (
+        <MahjongScoreTable />
+      ) : page === 'mjwaits' ? (
+        <MahjongWaits />
       ) : page === 'shotclock' ? (
         <ShotClock seconds={shotClockSeconds} />
       ) : page === 'chinchiro' ? (

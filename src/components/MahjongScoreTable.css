@@ -1,0 +1,135 @@
+.mjt {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 10px 8px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.mjt-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.mjt-tabs button {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ccc;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mjt-tabs button.active {
+  border-color: #3498db;
+  background: rgba(52, 152, 219, 0.25);
+  color: white;
+}
+
+.mjt-legend {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #999;
+  text-align: center;
+}
+
+.mjt-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjt-table th,
+.mjt-table td {
+  padding: 5px 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.mjt-table thead th {
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.mjt-fu-head,
+.mjt-fu {
+  width: 52px;
+}
+
+.mjt-fu {
+  font-size: 0.8rem;
+  color: #aaa;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mjt-table td {
+  line-height: 1.2;
+}
+
+.mjt-ron {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.mjt-tsumo {
+  display: block;
+  font-size: 0.66rem;
+  color: #9ab;
+}
+
+.mjt-none {
+  color: #444;
+}
+
+.mjt-mangan {
+  background: rgba(241, 196, 15, 0.1);
+}
+
+.mjt-mangan-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f1c40f;
+}
+
+.mjt-limits .mjt-limit-name {
+  font-size: 0.85rem;
+  color: #f1c40f;
+  background: rgba(241, 196, 15, 0.08);
+}
+
+.mjt-limit-han {
+  font-size: 0.75rem;
+  color: #aaa;
+}
+
+.mjt-limit-ron {
+  font-weight: 700;
+}
+
+.mjt-limit-tsumo {
+  font-size: 0.78rem;
+  color: #9ab;
+}
+
+.mjt-kiriage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #ccc;
+}
+
+.mjt-note {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #888;
+  line-height: 1.6;
+}
