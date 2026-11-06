@@ -1370,3 +1370,28 @@
 .settlement-item.payout .settlement-amount {
   color: #5dade2;
 }
+
+/* -------------------------------------------------- 結果を画像で保存 */
+.chip-image-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #5865f2;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chip-image-btn:active {
+  opacity: 0.8;
+}
+
+.chip-image-status {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #aaa;
+}

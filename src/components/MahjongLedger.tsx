@@ -17,7 +17,8 @@ import {
   type Rate,
 } from '../utils/mahjongSheet'
 import { hubTransfers, minimalTransfers } from '../utils/settlement'
-import { renderSheetImage, saveCanvasImage } from '../utils/mahjongImage'
+import { renderSheetImage } from '../utils/mahjongImage'
+import { dateStamp, saveCanvasImage } from '../utils/resultImage'
 import './MahjongLedger.css'
 
 interface SheetData {
@@ -647,9 +648,7 @@ export function MahjongLedger() {
               }
             : null,
       })
-      const d = new Date()
-      const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
-      const result = await saveCanvasImage(canvas, `mahjong_${stamp}.png`)
+      const result = await saveCanvasImage(canvas, `mahjong_${dateStamp()}.png`, '麻雀収支')
       setImageStatus(result === 'downloaded' ? '画像を保存しました' : null)
     } catch (e) {
       setImageStatus(e instanceof Error ? e.message : '画像を作れませんでした')

@@ -27,6 +27,8 @@ import {
 } from '../utils/addons'
 import type { Doc } from '../utils/docDiff'
 import { hubTransfers, minimalTransfers } from '../utils/settlement'
+import { renderChipImage } from '../utils/chipImage'
+import { dateStamp, saveCanvasImage } from '../utils/resultImage'
 import './ChipCalculator.css'
 
 interface ChipPlayer {
@@ -345,6 +347,7 @@ export function ChipCalculator() {
   }
 
   const [confirmReset, setConfirmReset] = useState(false)
+  const [imageStatus, setImageStatus] = useState<string | null>(null)
 
   const handleReset = () => {
     // 参加者と承認状態はルームそのものなので残す。
@@ -616,6 +619,33 @@ export function ChipCalculator() {
   )
   const settlements = computeSettlements(data)
   const hubSettlements = computeHubSettlements(data)
+
+  /** 結果を1枚の画像にして、共有メニューで送るかダウンロードする */
+  const saveImage = async () => {
+    try {
+      const canvas = renderChipImage({
+        players: data.players.map(p => ({
+          name: p.name,
+          buyIns: p.rebuyCount,
+          finalChips: p.finalChips,
+          pnl: Math.round(calcPnl(data, p)),
+        })),
+        chipsPer100BB: data.chipsPer100BB,
+        buyInYen: data.buyInYen,
+        rake: data.rake,
+        totalBuyInChips,
+        totalFinalChips,
+        chipDiff,
+        settlement1: settlements,
+        settlement2: hubSettlements,
+      })
+      const result = await saveCanvasImage(canvas, `chips_${dateStamp()}.png`, 'チップ計算')
+      setImageStatus(result === 'downloaded' ? '画像を保存しました' : null)
+    } catch (e) {
+      setImageStatus(e instanceof Error ? e.message : '画像を作れませんでした')
+    }
+    window.setTimeout(() => setImageStatus(null), 2500)
+  }
 
   return (
     <div className="chip-calculator">
@@ -1001,6 +1031,11 @@ export function ChipCalculator() {
               </ul>
             )}
           </div>
+
+          <button className="chip-image-btn" onClick={() => void saveImage()}>
+            📷 結果を画像で保存・送る
+          </button>
+          {imageStatus && <p className="chip-image-status">{imageStatus}</p>}
         </div>
       )}
 

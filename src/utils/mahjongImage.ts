@@ -1,10 +1,10 @@
 /*
  * 麻雀点数表を1枚の画像（PNG）にする。LINE や Discord にそのまま貼れるように。
- * 画像ファイルやライブラリは使わず canvas に描く。
  */
 
 import { rowStatus, type Cell } from './mahjongSheet'
 import type { Transfer } from './settlement'
+import { COLORS, FONT, color, dateLabel, fit, signed } from './resultImage'
 
 export interface SheetImageInput {
   names: string[]
@@ -39,41 +39,14 @@ export interface SheetImageInput {
   } | null
 }
 
-const FONT = '-apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif'
-const COLORS = {
-  bg: '#14141f',
-  panel: '#1d1d2b',
-  line: 'rgba(255,255,255,0.10)',
-  text: '#f2f2f2',
-  sub: '#9a9aaa',
-  green: '#2ecc71',
-  red: '#ff6b5e',
-  overRow: 'rgba(46,204,113,0.22)',
-  underRow: 'rgba(231,76,60,0.25)',
-  accent: '#5865f2',
-}
-
 const PAD = 28
 const NO_COL = 52
 const COL = 104
 const ROW_H = 40
 const SCALE = 2
 
-function signed(n: number) {
-  return `${n > 0 ? '+' : ''}${n.toLocaleString()}`
-}
 
-function color(n: number) {
-  return n > 0 ? COLORS.green : n < 0 ? COLORS.red : COLORS.text
-}
 
-/** はみ出す文字は末尾を「…」にして収める */
-function fit(g: CanvasRenderingContext2D, text: string, width: number) {
-  if (g.measureText(text).width <= width) return text
-  let t = text
-  while (t.length > 1 && g.measureText(`${t}…`).width > width) t = t.slice(0, -1)
-  return `${t}…`
-}
 
 export function renderSheetImage(input: SheetImageInput, date = new Date()): HTMLCanvasElement {
   const cols = input.names.length
@@ -144,8 +117,7 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   g.fillText('🀄 麻雀収支', PAD, y + 16)
   g.font = `15px ${FONT}`
   g.fillStyle = COLORS.sub
-  const d = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
-  g.fillText(`${d} ・ ${input.rateLabel}`, PAD, y + 46)
+  g.fillText(`${dateLabel(date)} ・ ${input.rateLabel}`, PAD, y + 46)
   y += 64
 
   const cellX = (c: number) => left + NO_COL + c * COL
@@ -304,33 +276,4 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   g.fillStyle = 'rgba(255,255,255,0.3)'
   g.fillText('Flipout 麻雀収支', width - PAD, height - PAD / 2 - 4)
   return canvas
-}
-
-/**
- * 画像を保存する。スマホで共有メニューが使えるならそれを開く（LINE などにそのまま送れる）。
- * 使えなければダウンロードする。
- */
-export async function saveCanvasImage(canvas: HTMLCanvasElement, filename: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
-  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
-  if (!blob) throw new Error('画像を作れませんでした')
-  const file = new File([blob], filename, { type: 'image/png' })
-  const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean }
-  if (nav.canShare?.({ files: [file] }) && 'ontouchstart' in window) {
-    try {
-      await navigator.share({ files: [file], title: '麻雀収支' })
-      return 'shared'
-    } catch (e) {
-      // 共有メニューを閉じただけ
-      if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled'
-    }
-  }
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-  return 'downloaded'
 }
