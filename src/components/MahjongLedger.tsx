@@ -635,6 +635,17 @@ export function MahjongLedger() {
         transfers,
         settleLabel: method === 'minimal' ? '回数が少ない組み合わせ' : 'トップにまとめる',
         warning: gapWarning,
+        chipDetail: hasChips ? { counts: chips, yenPerChip: chipYen } : null,
+        venueDetail:
+          venueTotal > 0
+            ? {
+                total: venueTotal,
+                paid: venuePaid,
+                hours: usesHours ? weights : null,
+                fullHours: venueFullHours,
+                shares,
+              }
+            : null,
       })
       const d = new Date()
       const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`

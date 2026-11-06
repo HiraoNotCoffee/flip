@@ -22,6 +22,8 @@ const SEGMENTS = 40
 /** 1単位 ≒ 2cm。本物の重力だと速すぎて目で追えないので少し緩める */
 const GRAVITY = 30
 export const STEP = 1 / 180
+/** 1フレームで進める最大ステップ数（これを超えて溜まった分は捨てる） */
+const MAX_STEPS_PER_FRAME = 12
 /** 全部がこの秒数だけ止まっていたら役を出す */
 export const SETTLE_SECONDS = 0.25
 export const MAX_THROW_SPEED = 40
@@ -62,6 +64,7 @@ export class DicePhysics {
   /** 転がっている間のぶつかり（音やバイブ用） */
   onImpact: ((kind: ImpactKind, speed: number) => void) | null = null
   private rolling = false
+  private accumulator = 0
   /** さいころ同士がぶつかったときの跳ね（次のステップの後でかける） */
   private pendingKicks = new Map<CANNON.Body, number>()
   private lastKick = new Map<CANNON.Body, number>()
@@ -211,8 +214,20 @@ export class DicePhysics {
     body.quaternion.normalize()
   }
 
+  /**
+   * 経過時間ぶん物理を進める。cannon-es の world.step(固定, 経過, 最大) は、計算に
+   * 時間がかかると途中で打ち切る（端末が重いと結果が変わる）ので、刻みは自分で数えて
+   * 固定の1ステップずつ進める。重い端末で溜まりすぎた分だけは捨てる。
+   */
   step(dt: number) {
-    this.world.step(STEP, dt, 12)
+    this.accumulator += dt
+    let steps = 0
+    while (this.accumulator >= STEP && steps < MAX_STEPS_PER_FRAME) {
+      this.world.step(STEP)
+      this.accumulator -= STEP
+      steps++
+    }
+    if (steps === MAX_STEPS_PER_FRAME) this.accumulator = 0
   }
 
   /**
