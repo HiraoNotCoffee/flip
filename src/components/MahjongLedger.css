@@ -662,3 +662,26 @@
   text-align: right;
   white-space: nowrap;
 }
+
+/* -------------------------------------------------- 画像で保存 */
+.mjs-image-btn {
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #5865f2;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mjs-image-btn:active {
+  opacity: 0.8;
+}
+
+.mjs-image-status {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #aaa;
+}

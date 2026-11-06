@@ -17,6 +17,7 @@ import {
   type Rate,
 } from '../utils/mahjongSheet'
 import { hubTransfers, minimalTransfers } from '../utils/settlement'
+import { renderSheetImage, saveCanvasImage } from '../utils/mahjongImage'
 import './MahjongLedger.css'
 
 interface SheetData {
@@ -306,6 +307,7 @@ export function MahjongLedger() {
   const [codeInput, setCodeInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [imageStatus, setImageStatus] = useState<string | null>(null)
   const roleRef = useRef(role)
 
   useEffect(() => {
@@ -603,6 +605,46 @@ export function MahjongLedger() {
   const pointGap = rowSum(totals) ?? 0
   const transfers =
     method === 'minimal' ? minimalTransfers(balances) : hubTransfers(balances).rows
+
+  const gapWarning =
+    yenGap === 0
+      ? null
+      : `${
+          pointGap !== 0 && chipTotal !== 0
+            ? '点数とご祝儀の合計が'
+            : pointGap !== 0
+              ? '点数の合計が'
+              : 'ご祝儀の枚数の合計が'
+        } 0 になっていないので、精算が ${signed(yenGap)}円 合いません`
+
+  /** 表の結果を1枚の画像にして、共有メニューで送るかダウンロードする */
+  const saveImage = async () => {
+    try {
+      const canvas = renderSheetImage({
+        names: names.map((_, c) => displayName(c)),
+        rows,
+        totals,
+        pointYens: totals.map(t => toYen(t, yen)),
+        chipYens: hasChips ? chipYens : null,
+        venue: venueTotal > 0 ? venue : null,
+        finals,
+        rateLabel:
+          rate === 'custom'
+            ? `1pt = ${customYen.toLocaleString()}円`
+            : `${RATE_LABEL[rate]}（1pt = ${RATE_YEN[rate]}円）`,
+        transfers,
+        settleLabel: method === 'minimal' ? '回数が少ない組み合わせ' : 'トップにまとめる',
+        warning: gapWarning,
+      })
+      const d = new Date()
+      const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+      const result = await saveCanvasImage(canvas, `mahjong_${stamp}.png`)
+      setImageStatus(result === 'downloaded' ? '画像を保存しました' : null)
+    } catch (e) {
+      setImageStatus(e instanceof Error ? e.message : '画像を作れませんでした')
+    }
+    window.setTimeout(() => setImageStatus(null), 2500)
+  }
 
   const setName = (c: number, name: string) =>
     setData(prev => ({ ...prev, names: prev.names.map((n, i) => (i === c ? name : n)) }))
@@ -963,18 +1005,17 @@ export function MahjongLedger() {
               ))}
             </ul>
           )}
-          {yenGap !== 0 && (
+          {gapWarning && (
             <p className="mjs-settle-warn">
-              {pointGap !== 0 && chipTotal !== 0
-                ? '点数とご祝儀の合計が'
-                : pointGap !== 0
-                  ? '点数の合計が'
-                  : 'ご祝儀の枚数の合計が'}{' '}
-              0 になっていないので、精算が {signed(yenGap)}円 合いません。
-              {pointGap !== 0 && '色の付いた行を確かめてください。'}
+              {gapWarning}。{pointGap !== 0 && '色の付いた行を確かめてください。'}
             </p>
           )}
         </div>
+
+        <button className="mjs-image-btn" onClick={() => void saveImage()}>
+          📷 結果を画像で保存・送る
+        </button>
+        {imageStatus && <p className="mjs-image-status">{imageStatus}</p>}
 
         <p className="mjs-note">
           {readOnly
