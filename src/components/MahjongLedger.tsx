@@ -10,10 +10,9 @@ import {
   rowSum,
   toYen,
   yenPerPoint,
-  venueBalance,
-  venueShares,
   venueWeights,
-  orderBalance,
+  orderTotal as orderSum,
+  venueBill,
   type Cell,
   type Order,
   type Rate,
@@ -105,7 +104,7 @@ function parseSheet(json: string): SheetData | null {
           ? parsed.orders.map(o => ({
               label: String(o?.label ?? ''),
               yen: typeof o?.yen === 'number' && o.yen > 0 ? o.yen : 0,
-              payer: typeof o?.payer === 'number' && o.payer >= 0 && o.payer < columns ? o.payer : 0,
+              mode: o?.mode === 'split' ? ('split' as const) : ('each' as const),
               eaters: Array.isArray(o?.eaters)
                 ? o.eaters.filter((i): i is number => typeof i === 'number' && i >= 0 && i < columns)
                 : [],
@@ -599,17 +598,18 @@ export function MahjongLedger() {
   }
 
   const { names, rows, rate, customYen, venuePaid, venueFullHours, venueHours, chips, chipYen, orders } = view
-  const orderTotal = orders.reduce((s, o) => s + o.yen, 0)
-  const hasOrders = orderTotal > 0
-  const ordered = orderBalance(orders, names.length)
+  const ordersTotal = orders.reduce((s, o) => s + orderSum(o), 0)
+  const hasOrders = ordersTotal > 0
   const yen = yenPerPoint(rate, customYen)
   const columns = names.length
   const totals = columnTotals(rows, columns)
   const displayName = (c: number) => names[c].trim() || `名前${c + 1}`
   const venueTotal = venuePaid.reduce((a, b) => a + b, 0)
   const weights = venueWeights(venueHours, venueFullHours)
-  const shares = venueShares(venueTotal, weights)
-  const venue = venueBalance(venuePaid, weights)
+  // お会計（場代として払った合計）から注文を引いた分を割り、注文は頼んだ人に足す
+  const bill = venueBill(venuePaid, weights, orders)
+  const shares = bill.shares
+  const venue = bill.balance
   const usesHours = venueFullHours !== null || venueHours.some(h => h !== null)
   // 全体の時間より長くいたことになっている人がいれば、入力ミスの可能性がある
   const hoursOver =
@@ -618,7 +618,7 @@ export function MahjongLedger() {
   const hasChips = chips.some(v => v !== 0)
   const chipYens = chips.map(n => Math.round(n * chipYen))
   // 点数の金額に、ご祝儀と場代（払った額 − 割り勘の負担）を足したものが最終的な収支
-  const finals = totals.map((t, c) => toYen(t, yen) + chipYens[c] + venue[c] + ordered[c])
+  const finals = totals.map((t, c) => toYen(t, yen) + chipYens[c] + venue[c])
   const balances = finals.map((amount, c) => ({ name: displayName(c), amount }))
   const yenGap = balances.reduce((sum, b) => sum + b.amount, 0)
   const pointGap = rowSum(totals) ?? 0
@@ -657,14 +657,14 @@ export function MahjongLedger() {
         chipDetail: hasChips ? { counts: chips, yenPerChip: chipYen } : null,
         orderDetail: hasOrders
           ? {
-              balance: ordered,
+              charges: bill.charges,
               items: orders
-                .filter(o => o.yen > 0)
+                .filter(o => orderSum(o) > 0)
                 .map(o => ({
                   label: o.label.trim() || '注文',
                   yen: o.yen,
-                  payer: displayName(o.payer),
-                  eaters: o.eaters.length === 0 ? '全員' : o.eaters.map(displayName).join('・'),
+                  mode: o.mode,
+                  eaters: o.eaters.map(displayName).join('・'),
                 })),
             }
           : null,
@@ -724,10 +724,9 @@ export function MahjongLedger() {
             venuePaid: prev.venuePaid.slice(0, -1),
             venueHours: prev.venueHours.slice(0, -1),
             chips: prev.chips.slice(0, -1),
-            // いなくなった人の分は外す（払った人だったら最初の人にする）
+            // いなくなった人の分は外す
             orders: prev.orders.map(o => ({
               ...o,
-              payer: o.payer >= prev.names.length - 1 ? 0 : o.payer,
               eaters: o.eaters.filter(i => i < prev.names.length - 1),
             })),
           },
@@ -743,12 +742,7 @@ export function MahjongLedger() {
     setData(prev => ({ ...prev, orders: prev.orders.map((o, i) => (i === index ? { ...o, ...patch } : o)) }))
 
   const addOrder = () =>
-    setData(prev => {
-      // 払った人は、場代をいちばん多く払った人（いなければ最初の人）にしておく
-      const maxPaid = Math.max(...prev.venuePaid)
-      const payer = maxPaid > 0 ? prev.venuePaid.indexOf(maxPaid) : 0
-      return { ...prev, orders: [...prev.orders, { label: '', yen: 0, payer, eaters: [] }] }
-    })
+    setData(prev => ({ ...prev, orders: [...prev.orders, { label: '', yen: 0, eaters: [], mode: 'each' }] }))
 
   const removeOrder = (index: number) =>
     setData(prev => ({ ...prev, orders: prev.orders.filter((_, i) => i !== index) }))
@@ -890,18 +884,7 @@ export function MahjongLedger() {
                 <td className="mjs-sum" />
               </tr>
             )}
-            {hasOrders && (
-              <tr className="mjs-venue-row">
-                <th className="mjs-th-no">注文</th>
-                {ordered.map((v, c) => (
-                  <td key={c} className={v > 0 ? 'positive' : v < 0 ? 'negative' : ''}>
-                    {signed(v)}
-                  </td>
-                ))}
-                <td className="mjs-sum" />
-              </tr>
-            )}
-            {(venueTotal > 0 || hasChips || hasOrders) && (
+            {(venueTotal > 0 || hasChips) && (
               <tr className="mjs-final-row">
                 <th className="mjs-th-no">収支</th>
                 {finals.map((v, c) => (
@@ -1011,7 +994,7 @@ export function MahjongLedger() {
           </div>
           {!readOnly && (
             <p className="mjs-settle-how">
-              払った人の欄に金額を入れてください。時間を入れなければ均等割り、入れるといた時間の比率で按分します（空欄の人は全体の時間いた扱い）。
+              お会計を払った人の欄に金額を入れてください（注文の分も含めた合計）。時間を入れなければ均等割り、入れるといた時間の比率で按分します（空欄の人は全体の時間いた扱い）。
             </p>
           )}
           {(!readOnly || usesHours) && (
@@ -1036,7 +1019,10 @@ export function MahjongLedger() {
               <span className="mjs-venue-name">
                 {displayName(c)}
                 {venueTotal > 0 && (
-                  <span className="mjs-venue-share">負担 ¥{shares[c].toLocaleString()}</span>
+                  <span className="mjs-venue-share">
+                    負担 ¥{shares[c].toLocaleString()}
+                    {bill.charges[c] > 0 && `（うち注文 ¥${bill.charges[c].toLocaleString()}）`}
+                  </span>
                 )}
               </span>
               <YenField value={venuePaid[c]} onChange={v => setVenuePaid(c, v)} readOnly={readOnly} />
@@ -1053,79 +1039,95 @@ export function MahjongLedger() {
           {hoursOver && (
             <p className="mjs-settle-warn">全体の時間より長くいたことになっている人がいます。</p>
           )}
-        </div>
 
-        <div className="mjs-venue mjs-orders">
-          <div className="mjs-venue-header">
-            <h3>個別の注文</h3>
-            {hasOrders && <span className="mjs-venue-summary">合計 ¥{orderTotal.toLocaleString()}</span>}
-          </div>
-          {!readOnly && (
-            <p className="mjs-settle-how">
-              焼きそばなど、個別に頼んだものを入れてください。食べた人で割り勘し、払った人が立て替えた分として精算に含めます（食べた人を選ばなければ全員）。
-            </p>
-          )}
-          {orders.length === 0 && readOnly && <p className="mjs-settle-how">なし</p>}
-          {orders.map((o, i) => (
-            <div key={i} className="mjs-order">
-              <div className="mjs-order-top">
-                {readOnly ? (
-                  <span className="mjs-order-label">{o.label.trim() || '注文'}</span>
-                ) : (
-                  <input
-                    className="mjs-order-label-input"
-                    value={o.label}
-                    placeholder="焼きそば"
-                    onChange={e => updateOrder(i, { label: e.target.value })}
-                  />
-                )}
-                <YenField value={o.yen} onChange={v => updateOrder(i, { yen: v })} readOnly={readOnly} />
-                <span className="mjs-venue-unit">円</span>
-                {!readOnly && (
-                  <button className="mjs-order-remove" onClick={() => removeOrder(i)} aria-label="この注文を消す">
-                    ×
-                  </button>
-                )}
-              </div>
-              <div className="mjs-order-row">
-                <span className="mjs-order-key">食べた人</span>
-                <div className="mjs-order-people">
-                  {names.map((_, c) => (
+          {/* お会計に含まれる個別の注文。頼んだ人だけが負担する */}
+          <div className="mjs-orders">
+            <div className="mjs-orders-head">
+              <span className="mjs-orders-title">このうち個別の注文</span>
+              {hasOrders && <span className="mjs-venue-summary">¥{ordersTotal.toLocaleString()}</span>}
+            </div>
+            {!readOnly && (
+              <p className="mjs-settle-how">
+                レッドブルなど個別に頼んだものは、お会計から引いて残りを割り、頼んだ人に足します。
+              </p>
+            )}
+            {orders.map((o, i) => (
+              <div key={i} className="mjs-order">
+                <div className="mjs-order-top">
+                  {readOnly ? (
+                    <span className="mjs-order-label">{o.label.trim() || '注文'}</span>
+                  ) : (
+                    <input
+                      className="mjs-order-label-input"
+                      value={o.label}
+                      placeholder="レッドブル"
+                      onChange={e => updateOrder(i, { label: e.target.value })}
+                    />
+                  )}
+                  <YenField value={o.yen} onChange={v => updateOrder(i, { yen: v })} readOnly={readOnly} />
+                  <span className="mjs-venue-unit">円</span>
+                  {!readOnly && (
+                    <button className="mjs-order-remove" onClick={() => removeOrder(i)} aria-label="この注文を消す">
+                      ×
+                    </button>
+                  )}
+                </div>
+                <div className="mjs-order-row">
+                  <span className="mjs-order-key">頼んだ人</span>
+                  <div className="mjs-order-people">
+                    {names.map((_, c) => (
+                      <button
+                        key={c}
+                        className={`mjs-chip-toggle ${o.eaters.includes(c) ? 'on' : ''}`}
+                        onClick={() => toggleEater(i, c)}
+                        disabled={readOnly}
+                      >
+                        {displayName(c)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="mjs-order-row">
+                  <span className="mjs-order-key">分け方</span>
+                  <div className="mjs-order-people">
                     <button
-                      key={c}
-                      className={`mjs-chip-toggle ${o.eaters.includes(c) ? 'on' : ''} ${o.eaters.length === 0 ? 'all' : ''}`}
-                      onClick={() => toggleEater(i, c)}
+                      className={`mjs-chip-toggle ${o.mode === 'each' ? 'on' : ''}`}
+                      onClick={() => updateOrder(i, { mode: 'each' })}
                       disabled={readOnly}
                     >
-                      {displayName(c)}
+                      1人1つずつ
                     </button>
-                  ))}
+                    <button
+                      className={`mjs-chip-toggle ${o.mode === 'split' ? 'on' : ''}`}
+                      onClick={() => updateOrder(i, { mode: 'split' })}
+                      disabled={readOnly}
+                    >
+                      みんなで割る
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="mjs-order-row">
-                <span className="mjs-order-key">払った人</span>
-                {readOnly ? (
-                  <span>{displayName(o.payer)}</span>
-                ) : (
-                  <select
-                    className="mjs-order-payer"
-                    value={o.payer}
-                    onChange={e => updateOrder(i, { payer: Number(e.target.value) })}
-                  >
-                    {names.map((_, c) => (
-                      <option key={c} value={c}>
-                        {displayName(c)}
-                      </option>
-                    ))}
-                  </select>
+                {orderSum(o) > 0 && (
+                  <div className="mjs-order-sum">
+                    {o.mode === 'each'
+                      ? `¥${o.yen.toLocaleString()} × ${o.eaters.length}人 = ¥${orderSum(o).toLocaleString()}`
+                      : `¥${o.yen.toLocaleString()} を ${o.eaters.length}人で割る`}
+                  </div>
+                )}
+                {o.yen > 0 && o.eaters.length === 0 && (
+                  <div className="mjs-order-sum">頼んだ人を選んでください</div>
                 )}
               </div>
-            </div>
-          ))}
-          {!readOnly && (
-            <button className="mjs-add-row" onClick={addOrder}>
-              ＋ 注文を追加
-            </button>
+            ))}
+            {!readOnly && (
+              <button className="mjs-add-row" onClick={addOrder}>
+                ＋ 注文を追加
+              </button>
+            )}
+          </div>
+          {bill.over && (
+            <p className="mjs-settle-warn">
+              注文の合計（¥{bill.ordersSum.toLocaleString()}）がお会計（¥{venueTotal.toLocaleString()}）より多くなっています。お会計の金額を確かめてください。
+            </p>
           )}
         </div>
 

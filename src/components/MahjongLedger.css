@@ -642,6 +642,9 @@
 
 .mjs-venue-share {
   display: block;
+  /* 「（うち注文 ¥500）」が切れないよう折り返す */
+  white-space: normal;
+  line-height: 1.35;
   font-size: 0.7rem;
   color: #999;
   font-variant-numeric: tabular-nums;
@@ -774,21 +777,33 @@
   color: white;
 }
 
-/* 誰も選んでいない＝全員。うっすら全員が選ばれているように見せる */
-.mjs-chip-toggle.all {
-  border-color: rgba(52, 152, 219, 0.5);
-  color: #ccc;
-}
-
 .mjs-chip-toggle:disabled {
   cursor: default;
 }
 
-.mjs-order-payer {
-  padding: 5px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  background: #1d1d2b;
-  color: white;
-  font-size: 0.85rem;
+/* お会計の中の個別の注文 */
+.mjs-orders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.mjs-orders-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.mjs-orders-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.mjs-order-sum {
+  font-size: 0.72rem;
+  color: #9ab;
+  text-align: right;
 }

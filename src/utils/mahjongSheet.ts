@@ -91,28 +91,64 @@ export function venueBalance(paid: number[], weights: number[] = paid.map(() => 
   return paid.map((p, i) => p - shares[i])
 }
 
-/** 個別に頼んだもの（焼きそばなど）。食べた人で割り勘し、払った人が立て替える */
+/**
+ * 個別に頼んだもの（レッドブル・焼きそばなど）。お会計（場代として払った額）に含まれていて、
+ * 頼んだ人だけが負担する。
+ */
 export interface Order {
   label: string
   yen: number
-  /** 払った人（列の番号） */
-  payer: number
-  /** 食べた人（列の番号）。空なら全員 */
+  /** 頼んだ人（列の番号） */
   eaters: number[]
+  /** each: 1人1つずつ（頼んだ人それぞれが yen を負担） / split: 頼んだ人で yen を割り勘 */
+  mode: 'each' | 'split'
 }
 
-/** 注文で各自がいくら得をしたか（立て替えた額 − 自分が食べた分）。全員の合計は 0 */
-export function orderBalance(orders: Order[], people: number): number[] {
-  const balance = new Array<number>(people).fill(0)
+/** その注文の金額の合計（1人1つずつなら 金額 × 人数） */
+export function orderTotal(order: Order): number {
+  if (order.yen <= 0 || order.eaters.length === 0) return 0
+  return order.mode === 'split' ? order.yen : order.yen * order.eaters.length
+}
+
+/** 注文で各自が負担する額 */
+export function orderCharges(orders: Order[], people: number): number[] {
+  const charges = new Array<number>(people).fill(0)
   for (const o of orders) {
-    if (o.yen <= 0 || o.payer < 0 || o.payer >= people) continue
     const eaters = o.eaters.filter(i => i >= 0 && i < people)
-    const weights = Array.from({ length: people }, (_, i) =>
-      eaters.length === 0 || eaters.includes(i) ? 1 : 0,
-    )
-    const shares = venueShares(o.yen, weights)
-    balance[o.payer] += o.yen
-    shares.forEach((s, i) => (balance[i] -= s))
+    if (o.yen <= 0 || eaters.length === 0) continue
+    if (o.mode === 'split') {
+      const weights = Array.from({ length: people }, (_, i) => (eaters.includes(i) ? 1 : 0))
+      venueShares(o.yen, weights).forEach((v, i) => (charges[i] += v))
+    } else {
+      eaters.forEach(i => (charges[i] += o.yen))
+    }
   }
-  return balance
+  return charges
+}
+
+/**
+ * お会計の負担。（場代として払った合計 − 注文の合計）を重み（いた時間）で割り、
+ * 注文の分を頼んだ人に足す。
+ * 例: 合計2万円のうち A と B がレッドブル500円 → (20000 − 1000) ÷ 4 = 4750 に、A と B は +500。
+ */
+export function venueBill(paid: number[], weights: number[], orders: Order[]) {
+  const people = paid.length
+  const total = paid.reduce((s, v) => s + v, 0)
+  const charges = orderCharges(orders, people)
+  const ordersSum = charges.reduce((s, v) => s + v, 0)
+  // 注文の合計がお会計より多いのは入力ミス。割る分は 0 にして、ずれは呼ぶ側で知らせる
+  const base = venueShares(Math.max(0, total - ordersSum), weights)
+  const shares = base.map((v, i) => v + charges[i])
+  return {
+    total,
+    ordersSum,
+    /** 各自の負担（割った分 + 注文） */
+    shares,
+    /** 注文の分（各自） */
+    charges,
+    /** 払った額 − 負担。立て替えた人がプラス */
+    balance: paid.map((p, i) => p - shares[i]),
+    /** 注文の合計がお会計を超えている */
+    over: ordersSum > total,
+  }
 }

@@ -26,11 +26,11 @@ export interface SheetImageInput {
   warning: string | null
   /** ご祝儀の内訳（枚数と1枚の金額）。無ければ null */
   chipDetail: { counts: number[]; yenPerChip: number } | null
-  /** 個別の注文。無ければ null */
+  /** 個別の注文（お会計に含まれていて、頼んだ人だけが負担する）。無ければ null */
   orderDetail: {
-    /** 各自の得（立て替えた額 − 自分の分） */
-    balance: number[]
-    items: { label: string; yen: number; payer: string; eaters: string }[]
+    /** 注文で各自が負担する額 */
+    charges: number[]
+    items: { label: string; yen: number; mode: 'each' | 'split'; eaters: string }[]
   } | null
   /** 場代の内訳。無ければ null */
   venueDetail: {
@@ -67,8 +67,7 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   ]
   if (input.chipYens) footRows.push({ label: '祝儀', values: input.chipYens })
   if (input.venue) footRows.push({ label: '場代', values: input.venue })
-  if (input.orderDetail) footRows.push({ label: '注文', values: input.orderDetail.balance })
-  if (input.chipYens || input.venue || input.orderDetail) {
+  if (input.chipYens || input.venue) {
     footRows.push({ label: '収支', values: input.finals, strong: true })
   }
 
@@ -89,6 +88,12 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
     const v = input.venueDetail
     detailRows.push({ label: '払った', cells: v.paid.map(p => (p === 0 ? '-' : `¥${p.toLocaleString()}`)) })
     if (v.hours) detailRows.push({ label: '時間', cells: v.hours.map(h => `${h}h`) })
+    if (input.orderDetail) {
+      detailRows.push({
+        label: 'うち注文',
+        cells: input.orderDetail.charges.map(c => (c === 0 ? '-' : `¥${c.toLocaleString()}`)),
+      })
+    }
     detailRows.push({ label: '負担', cells: v.shares.map(s => `¥${s.toLocaleString()}`) })
     detailNotes.push(
       `場代 合計 ¥${v.total.toLocaleString()}` +
@@ -97,7 +102,9 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   }
   const orderItems = input.orderDetail?.items ?? []
   if (orderItems.length > 0) {
-    detailNotes.push(`注文 合計 ¥${orderItems.reduce((sum, o) => sum + o.yen, 0).toLocaleString()}`)
+    // 1人1つずつの注文は 金額 × 人数 になるので、各自の負担を足して合計を出す
+    const ordersTotal = input.orderDetail!.charges.reduce((sum, c) => sum + c, 0)
+    detailNotes.push(`注文 合計 ¥${ordersTotal.toLocaleString()}`)
   }
   const detailH =
     detailRows.length > 0 || orderItems.length > 0
@@ -249,7 +256,11 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
       g.fillText(fit(g, head, 200), PAD + 4, y + 15)
       g.fillStyle = COLORS.sub
       g.font = `13px ${FONT}`
-      g.fillText(fit(g, `${item.eaters} の分 ・ ${item.payer} が払った`, width - PAD * 2 - 220), PAD + 214, y + 15)
+      g.fillText(
+        fit(g, `${item.eaters}${item.mode === 'each' ? ' が1つずつ' : ' で割る'}`, width - PAD * 2 - 220),
+        PAD + 214,
+        y + 15,
+      )
       y += 30
     })
     y += 12
