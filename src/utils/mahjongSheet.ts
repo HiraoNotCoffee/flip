@@ -152,3 +152,17 @@ export function venueBill(paid: number[], weights: number[], orders: Order[]) {
     over: ordersSum > total,
   }
 }
+
+/**
+ * 100円単位で精算しやすいように丸める。端数は勝ち（いちばん勝った人）につける。
+ * トップ以外は 100円単位に切り下げ（負けている人は払う額が切り上がり、勝っている人は
+ * 受け取る額が切り下がる）、その差をすべてトップが受け取る。全員の合計は変わらない。
+ */
+export function roundForSettlement(amounts: number[], unit = 100): number[] {
+  if (amounts.length === 0) return []
+  const top = amounts.indexOf(Math.max(...amounts))
+  const rounded = amounts.map((v, i) => (i === top ? v : Math.floor(v / unit) * unit))
+  const diff = amounts.reduce((s, v) => s + v, 0) - rounded.reduce((s, v) => s + v, 0)
+  rounded[top] += diff
+  return rounded
+}

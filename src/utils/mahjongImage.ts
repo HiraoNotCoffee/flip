@@ -19,6 +19,8 @@ export interface SheetImageInput {
   venue: number[] | null
   /** 最終的な収支（円） */
   finals: number[]
+  /** 100円単位に丸めた精算額（端数はトップへ）。丸めていなければ null */
+  settleAmounts: number[] | null
   rateLabel: string
   transfers: Transfer[]
   settleLabel: string
@@ -68,8 +70,9 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   if (input.chipYens) footRows.push({ label: '祝儀', values: input.chipYens })
   if (input.venue) footRows.push({ label: '場代', values: input.venue })
   if (input.chipYens || input.venue) {
-    footRows.push({ label: '収支', values: input.finals, strong: true })
+    footRows.push({ label: '収支', values: input.finals, strong: !input.settleAmounts })
   }
+  if (input.settleAmounts) footRows.push({ label: '精算', values: input.settleAmounts, strong: true })
 
   // 内訳（ご祝儀の枚数、場代を誰がいくら払ったか・いた時間・負担）
   type DetailRow = { label: string; cells: string[]; colors?: string[] }
@@ -274,7 +277,7 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   g.fillText('精算', PAD, y)
   g.font = `14px ${FONT}`
   g.fillStyle = COLORS.sub
-  g.fillText(input.settleLabel, PAD + 52, y + 1)
+  g.fillText(input.settleAmounts ? `${input.settleLabel} ・ 100円単位（端数はトップへ）` : input.settleLabel, PAD + 52, y + 1)
   y += 26
   const boxW = width - PAD * 2
   if (input.transfers.length === 0) {

@@ -13,6 +13,7 @@ import {
   venueWeights,
   orderTotal as orderSum,
   venueBill,
+  roundForSettlement,
   type Cell,
   type Order,
   type Rate,
@@ -40,6 +41,8 @@ interface SheetData {
   chipYen: number
   /** 個別に頼んだもの（焼きそばなど） */
   orders: Order[]
+  /** 100円単位で精算する（端数はトップへ） */
+  roundTo100: boolean
 }
 
 const STORAGE_KEY = 'mahjong-sheet-data'
@@ -66,6 +69,7 @@ function freshData(rate: Rate = 'tenpin'): SheetData {
     chips: Array.from({ length: DEFAULT_PLAYERS }, () => 0),
     chipYen: DEFAULT_CHIP_YEN,
     orders: [],
+    roundTo100: true,
   }
 }
 
@@ -100,6 +104,7 @@ function parseSheet(json: string): SheetData | null {
         }),
         chipYen:
           typeof parsed.chipYen === 'number' && parsed.chipYen >= 0 ? parsed.chipYen : DEFAULT_CHIP_YEN,
+        roundTo100: parsed.roundTo100 !== false,
         orders: Array.isArray(parsed.orders)
           ? parsed.orders.map(o => ({
               label: String(o?.label ?? ''),
@@ -619,7 +624,10 @@ export function MahjongLedger() {
   const chipYens = chips.map(n => Math.round(n * chipYen))
   // 点数の金額に、ご祝儀と場代（払った額 − 割り勘の負担）を足したものが最終的な収支
   const finals = totals.map((t, c) => toYen(t, yen) + chipYens[c] + venue[c])
-  const balances = finals.map((amount, c) => ({ name: displayName(c), amount }))
+  // 100円単位にするなら、端数はトップにつけて精算しやすくする
+  const settleAmounts = view.roundTo100 ? roundForSettlement(finals) : finals
+  const rounded = settleAmounts.some((v, c) => v !== finals[c])
+  const balances = settleAmounts.map((amount, c) => ({ name: displayName(c), amount }))
   const yenGap = balances.reduce((sum, b) => sum + b.amount, 0)
   const pointGap = rowSum(totals) ?? 0
   const transfers =
@@ -647,6 +655,7 @@ export function MahjongLedger() {
         chipYens: hasChips ? chipYens : null,
         venue: venueTotal > 0 ? venue : null,
         finals,
+        settleAmounts: rounded ? settleAmounts : null,
         rateLabel:
           rate === 'custom'
             ? `1pt = ${customYen.toLocaleString()}円`
@@ -888,6 +897,17 @@ export function MahjongLedger() {
               <tr className="mjs-final-row">
                 <th className="mjs-th-no">収支</th>
                 {finals.map((v, c) => (
+                  <td key={c} className={v > 0 ? 'positive' : v < 0 ? 'negative' : ''}>
+                    {signed(v)}
+                  </td>
+                ))}
+                <td className="mjs-sum" />
+              </tr>
+            )}
+            {rounded && (
+              <tr className="mjs-final-row mjs-settle-row">
+                <th className="mjs-th-no">精算</th>
+                {settleAmounts.map((v, c) => (
                   <td key={c} className={v > 0 ? 'positive' : v < 0 ? 'negative' : ''}>
                     {signed(v)}
                   </td>
@@ -1151,6 +1171,15 @@ export function MahjongLedger() {
               ? '送金の回数がいちばん少なくなる組み合わせ'
               : '負けた人はみんなトップに払い、トップが他の勝った人に配る'}
           </p>
+          <label className="mjs-round-toggle">
+            <input
+              type="checkbox"
+              checked={view.roundTo100}
+              disabled={readOnly}
+              onChange={e => setData(prev => ({ ...prev, roundTo100: e.target.checked }))}
+            />
+            100円単位で精算（端数はトップへ）
+          </label>
           {transfers.length === 0 ? (
             <div className="mjs-settle-empty">やりとりなし</div>
           ) : (

@@ -5,6 +5,7 @@ import {
   rowSum,
   toYen,
   orderCharges,
+  roundForSettlement,
   venueBill,
   venueBalance,
   venueWeights,
@@ -140,5 +141,31 @@ describe('お会計と個別の注文', () => {
 
   test('頼んだ人がいない・金額 0 の注文は無視', () => {
     expect(orderCharges([{ label: '', yen: 0, eaters: [1], mode: 'each' }, { label: 'y', yen: 300, eaters: [], mode: 'each' }], 3)).toEqual([0, 0, 0])
+  })
+})
+
+describe('100円単位の精算（端数はトップへ）', () => {
+  test('負けは払う額が100円単位に切り上がり、その差はトップへ', () => {
+    // トップ +14750、B −5250、C −4750、D −4750 → B・C・D は −5300 / −4800 / −4800、トップは +14900
+    expect(roundForSettlement([14750, -5250, -4750, -4750])).toEqual([14900, -5300, -4800, -4800])
+  })
+
+  test('トップ以外の勝ちは受け取る額が切り下がる', () => {
+    // +3550 → +3500。トップは 6522 + 50 + 61 + 67 = 6700
+    expect(roundForSettlement([6522, 3550, -2339, -7733])).toEqual([6700, 3500, -2400, -7800])
+  })
+
+  test('合計は変わらず、トップ以外は100円単位', () => {
+    const before = [3522, 6522, -2239, -7805]
+    const after = roundForSettlement(before)
+    expect(after.reduce((a, b) => a + b, 0)).toBe(0)
+    after.forEach((v, i) => {
+      if (i !== 1) expect(Math.abs(v % 100)).toBe(0)
+    })
+    expect(after[1]).toBeGreaterThanOrEqual(before[1])
+  })
+
+  test('もともと100円単位ならそのまま', () => {
+    expect(roundForSettlement([3000, -1000, -2000])).toEqual([3000, -1000, -2000])
   })
 })
