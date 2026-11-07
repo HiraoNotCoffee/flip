@@ -19,7 +19,7 @@ export interface SheetImageInput {
   venue: number[] | null
   /** 最終的な収支（円） */
   finals: number[]
-  /** 100円単位に丸めた精算額（端数はトップへ）。丸めていなければ null */
+  /** 100円単位に四捨五入した精算額（差はトップへ）。丸めていなければ null */
   settleAmounts: number[] | null
   rateLabel: string
   transfers: Transfer[]
@@ -277,7 +277,7 @@ export function renderSheetImage(input: SheetImageInput, date = new Date()): HTM
   g.fillText('精算', PAD, y)
   g.font = `14px ${FONT}`
   g.fillStyle = COLORS.sub
-  g.fillText(input.settleAmounts ? `${input.settleLabel} ・ 100円単位（端数はトップへ）` : input.settleLabel, PAD + 52, y + 1)
+  g.fillText(input.settleAmounts ? `${input.settleLabel} ・ 100円単位（四捨五入）` : input.settleLabel, PAD + 52, y + 1)
   y += 26
   const boxW = width - PAD * 2
   if (input.transfers.length === 0) {

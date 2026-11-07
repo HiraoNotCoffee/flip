@@ -154,14 +154,15 @@ export function venueBill(paid: number[], weights: number[], orders: Order[]) {
 }
 
 /**
- * 100円単位で精算しやすいように丸める。端数は勝ち（いちばん勝った人）につける。
- * トップ以外は 100円単位に切り下げ（負けている人は払う額が切り上がり、勝っている人は
- * 受け取る額が切り下がる）、その差をすべてトップが受け取る。全員の合計は変わらない。
+ * 100円単位で精算しやすいように丸める。トップ（いちばん勝った人）以外は 100円単位で
+ * 四捨五入し（マイナスも絶対値で四捨五入: −5250 → −5300）、丸めで出た差はトップが受け持つ。
+ * 全員の合計は変わらない。
  */
 export function roundForSettlement(amounts: number[], unit = 100): number[] {
   if (amounts.length === 0) return []
   const top = amounts.indexOf(Math.max(...amounts))
-  const rounded = amounts.map((v, i) => (i === top ? v : Math.floor(v / unit) * unit))
+  const round = (v: number) => (v < 0 ? -1 : 1) * Math.round(Math.abs(v) / unit) * unit
+  const rounded = amounts.map((v, i) => (i === top ? v : round(v) || 0))
   const diff = amounts.reduce((s, v) => s + v, 0) - rounded.reduce((s, v) => s + v, 0)
   rounded[top] += diff
   return rounded

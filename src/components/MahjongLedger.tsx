@@ -41,7 +41,7 @@ interface SheetData {
   chipYen: number
   /** 個別に頼んだもの（焼きそばなど） */
   orders: Order[]
-  /** 100円単位で精算する（端数はトップへ） */
+  /** 100円単位で精算する（トップ以外は四捨五入、差はトップへ） */
   roundTo100: boolean
 }
 
@@ -624,7 +624,7 @@ export function MahjongLedger() {
   const chipYens = chips.map(n => Math.round(n * chipYen))
   // 点数の金額に、ご祝儀と場代（払った額 − 割り勘の負担）を足したものが最終的な収支
   const finals = totals.map((t, c) => toYen(t, yen) + chipYens[c] + venue[c])
-  // 100円単位にするなら、端数はトップにつけて精算しやすくする
+  // 100円単位にするなら、トップ以外は四捨五入してキリよくし、差はトップが受け持つ
   const settleAmounts = view.roundTo100 ? roundForSettlement(finals) : finals
   const rounded = settleAmounts.some((v, c) => v !== finals[c])
   const balances = settleAmounts.map((amount, c) => ({ name: displayName(c), amount }))
@@ -1178,7 +1178,7 @@ export function MahjongLedger() {
               disabled={readOnly}
               onChange={e => setData(prev => ({ ...prev, roundTo100: e.target.checked }))}
             />
-            100円単位で精算（端数はトップへ）
+            100円単位で精算（四捨五入・差はトップへ）
           </label>
           {transfers.length === 0 ? (
             <div className="mjs-settle-empty">やりとりなし</div>
