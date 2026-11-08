@@ -46,17 +46,17 @@ function pinDot(d: Pip): string {
   const r = d.r ?? 12
   if (d.big) {
     return `<g>
-      <circle cx="${d.x}" cy="${d.y}" r="${r}" fill="#c0392b"/>
-      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.82}" fill="#f3ecd8"/>
-      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.64}" fill="#1f6aa8"/>
-      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.44}" fill="#f3ecd8"/>
-      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.26}" fill="#c0392b"/>
+      <circle cx="${d.x}" cy="${d.y}" r="${r}" fill="#d7262f"/>
+      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.82}" fill="#ffffff"/>
+      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.64}" fill="#1554c0"/>
+      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.44}" fill="#ffffff"/>
+      <circle cx="${d.x}" cy="${d.y}" r="${r * 0.26}" fill="#d7262f"/>
     </g>`
   }
-  const center = d.c ? '#c0392b' : '#1f6aa8'
+  const center = d.c ? '#d7262f' : '#1554c0'
   return `<g>
-    <circle cx="${d.x}" cy="${d.y}" r="${r}" fill="${d.c ? '#c0392b' : '#1f6aa8'}"/>
-    <circle cx="${d.x}" cy="${d.y}" r="${r * 0.6}" fill="#f6f0df"/>
+    <circle cx="${d.x}" cy="${d.y}" r="${r}" fill="${d.c ? '#d7262f' : '#1554c0'}"/>
+    <circle cx="${d.x}" cy="${d.y}" r="${r * 0.6}" fill="#ffffff"/>
     <circle cx="${d.x}" cy="${d.y}" r="${r * 0.3}" fill="${center}"/>
   </g>`
 }
@@ -72,9 +72,9 @@ function souStick(d: Pip): string {
     w = 12
     h = 20
   }
-  const main = d.c ? '#c0392b' : '#2f8f3e'
-  const dark = d.c ? '#8e2a20' : '#1f6e2c'
-  const light = d.c ? '#e06455' : '#57a86a'
+  const main = d.c ? '#d7262f' : '#0f8a4c'
+  const dark = d.c ? '#a3151c' : '#0a5e33'
+  const light = d.c ? '#ef5a61' : '#3fbf7a'
   const x = d.x - w / 2
   const y = d.y - h / 2
   return `<g>
@@ -87,54 +87,59 @@ function souStick(d: Pip): string {
 
 function birdSvg(): string {
   return `<g>
-    <path d="M45 92 Q40 88 44 82" stroke="#b23a2e" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-    <path d="M45 92 Q50 88 46 82" stroke="#b23a2e" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-    <path d="M45 40 C30 44 26 66 40 82 C44 87 46 87 50 82 C64 66 60 44 45 40 Z" fill="#2f8f3e"/>
-    <path d="M45 44 C36 48 34 64 43 78 C45 81 46 81 47 79 C41 64 43 52 48 46 Z" fill="#57a86a" opacity="0.65"/>
-    <circle cx="45" cy="34" r="10" fill="#2f8f3e"/>
-    <circle cx="48" cy="32" r="2.6" fill="#14231d"/>
-    <path d="M54 33 L64 30 L55 38 Z" fill="#c0392b"/>
-    <path d="M40 26 Q45 14 52 22" stroke="#c0392b" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-    <path d="M38 84 Q30 96 34 104" stroke="#2f8f3e" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <path d="M52 84 Q60 96 56 104" stroke="#c0392b" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <path d="M45 84 Q45 98 45 106" stroke="#2f8f3e" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M45 92 Q40 88 44 82" stroke="#d7262f" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M45 92 Q50 88 46 82" stroke="#d7262f" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M45 40 C30 44 26 66 40 82 C44 87 46 87 50 82 C64 66 60 44 45 40 Z" fill="#0f8a4c"/>
+    <path d="M45 44 C36 48 34 64 43 78 C45 81 46 81 47 79 C41 64 43 52 48 46 Z" fill="#3fbf7a" opacity="0.65"/>
+    <circle cx="45" cy="34" r="10" fill="#0f8a4c"/>
+    <circle cx="48" cy="32" r="2.6" fill="#111"/>
+    <path d="M54 33 L64 30 L55 38 Z" fill="#d7262f"/>
+    <path d="M40 26 Q45 14 52 22" stroke="#d7262f" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    <path d="M38 84 Q30 96 34 104" stroke="#0f8a4c" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M52 84 Q60 96 56 104" stroke="#d7262f" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M45 84 Q45 98 45 106" stroke="#0f8a4c" stroke-width="3" fill="none" stroke-linecap="round"/>
   </g>`
 }
 
+/**
+ * 牌の土台。白い面につやを付け、下に濃い緑の背を少し見せて立体感を出す。
+ * （面は y=2〜114 に収まる。中の絵は従来どおり 90x126 の座標で描く）
+ */
 function tileFace(inner: string, red: boolean): string {
-  const redTint = red
-    ? `<rect x="4" y="3" width="82" height="112" rx="9" fill="#e0503f" opacity="0.07"/>`
-    : ''
-  const redAura = red
-    ? `<rect x="4.5" y="3.5" width="81" height="111" rx="9" fill="none" stroke="#d94b3a" stroke-width="2.4" opacity="0.85"/>`
+  const redRing = red
+    ? `<rect x="3.5" y="3.5" width="83" height="109" rx="10" fill="none" stroke="#e23b3b" stroke-width="2.6"/>`
     : ''
   return `<svg viewBox="0 0 90 126" xmlns="http://www.w3.org/2000/svg">
     <defs>
-      <linearGradient id="mjfc" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fdfaef"/>
-        <stop offset="0.55" stop-color="#f3ecd8"/>
-        <stop offset="1" stop-color="#e7dcbf"/>
+      <linearGradient id="mjFace" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.7" stop-color="#f6f7f9"/>
+        <stop offset="1" stop-color="#e3e6ea"/>
       </linearGradient>
-      <linearGradient id="mjside" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#d8cca4"/>
-        <stop offset="1" stop-color="#bdb086"/>
+      <linearGradient id="mjBack" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#1fae7f"/>
+        <stop offset="1" stop-color="#0a6447"/>
+      </linearGradient>
+      <linearGradient id="mjGloss" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+        <stop offset="0.35" stop-color="#ffffff" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    <rect x="1.5" y="2" width="87" height="122" rx="13" fill="url(#mjside)"/>
-    <rect x="4" y="3" width="82" height="112" rx="9.5" fill="url(#mjfc)" stroke="#cfc4a0" stroke-width="1"/>
-    <rect x="6.5" y="5" width="77" height="107" rx="7.5" fill="none" stroke="#ffffff" stroke-width="1.3" opacity="0.55"/>
-    ${redTint}
+    <rect x="1" y="8" width="88" height="117" rx="12" fill="url(#mjBack)"/>
+    <rect x="1" y="1" width="88" height="114" rx="12" fill="url(#mjFace)"/>
+    <rect x="1" y="1" width="88" height="114" rx="12" fill="url(#mjGloss)"/>
+    <rect x="1.5" y="1.5" width="87" height="113" rx="11.5" fill="none" stroke="#c9ced6" stroke-width="1"/>
     ${inner}
-    ${redAura}
+    ${redRing}
   </svg>`
 }
 
 function tileSVG(kind: TileKind, red: boolean): string {
   let inner: string
   if (kind <= 8) {
-    const numColor = red ? '#c0392b' : '#1c2a22'
+    const numColor = red ? '#d7262f' : '#15181d'
     inner = `<text x="45" y="52" text-anchor="middle" font-family="${CJK_FONT}" font-size="46" font-weight="600" fill="${numColor}">${KANJI_NUM[kind]}</text>
-      <text x="45" y="103" text-anchor="middle" font-family="${CJK_FONT}" font-size="40" font-weight="600" fill="#b3271e">萬</text>`
+      <text x="45" y="103" text-anchor="middle" font-family="${CJK_FONT}" font-size="40" font-weight="600" fill="#d7262f">萬</text>`
   } else if (kind <= 17) {
     inner = PIN_LAYOUT[kind - 8].map(pinDot).join('')
   } else if (kind <= 26) {
@@ -142,10 +147,10 @@ function tileSVG(kind: TileKind, red: boolean): string {
     inner = n === 1 ? birdSvg() : SOU_LAYOUT[n].map(souStick).join('')
   } else if (kind === 31) {
     // 白: blue frame
-    inner = `<rect x="24" y="26" width="42" height="64" rx="4" fill="none" stroke="#1f6aa8" stroke-width="4"/>
-      <rect x="30" y="32" width="30" height="52" rx="2" fill="none" stroke="#1f6aa8" stroke-width="1.6" opacity="0.6"/>`
+    inner = `<rect x="24" y="26" width="42" height="64" rx="4" fill="none" stroke="#1554c0" stroke-width="4"/>
+      <rect x="30" y="32" width="30" height="52" rx="2" fill="none" stroke="#1554c0" stroke-width="1.6" opacity="0.6"/>`
   } else {
-    const color = kind === 32 ? '#2f8f3e' : kind === 33 ? '#c0392b' : '#1c2a22'
+    const color = kind === 32 ? '#0f8a4c' : kind === 33 ? '#d7262f' : '#15181d'
     inner = `<text x="45" y="80" text-anchor="middle" font-family="${CJK_FONT}" font-size="58" font-weight="700" fill="${color}">${HONOR_LABELS[kind - 27]}</text>`
   }
   return tileFace(inner, red)

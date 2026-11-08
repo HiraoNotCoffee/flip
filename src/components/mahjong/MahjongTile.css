@@ -10,15 +10,16 @@
   display: block;
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 2px 2.5px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.35));
 }
 
 .mj-tile.mj-tile-clickable {
   cursor: pointer;
+  transition: transform 0.08s ease-out;
 }
 
 .mj-tile.mj-tile-clickable:active {
-  transform: scale(0.94);
+  transform: translateY(2px) scale(0.96);
 }
 
 .mj-tile.mj-tile-disabled {

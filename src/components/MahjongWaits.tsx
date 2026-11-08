@@ -110,13 +110,16 @@ export function MahjongWaits() {
         {ROWS.map(row => (
           <div key={row.label} className="mjw-pad-row">
             {row.kinds.map(kind => (
-              <TileView
-                key={kind}
-                tile={{ kind }}
-                size={36}
-                onClick={() => add(kind)}
-                disabled={total >= MAX_TILES || counts[kind] >= 4}
-              />
+              <div key={kind} className={`mjw-pad-tile ${counts[kind] > 0 ? 'used' : ''}`}>
+                <TileView
+                  tile={{ kind }}
+                  size={36}
+                  onClick={() => add(kind)}
+                  disabled={total >= MAX_TILES || counts[kind] >= 4}
+                />
+                {/* 手牌に何枚入れたか */}
+                {counts[kind] > 0 && <span className="mjw-pad-count">×{counts[kind]}</span>}
+              </div>
             ))}
           </div>
         ))}
