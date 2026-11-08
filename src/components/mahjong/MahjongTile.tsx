@@ -26,69 +26,32 @@ const RED = '#cc1620'
 const PAPER = '#ffffff'
 
 // ---- 筒子 ----
-type PinColor = 'k' | 'r'
-const PIN_FILL: Record<PinColor, string> = { k: INK, r: RED }
+// 参考の牌のように、色を塗りつぶした大きな玉に、細い明るい線で外輪と桜のような花を描く。
+// 色は黒とくすんだ赤（d）。赤い五筒（r）は明るい赤。
+type PinColor = 'k' | 'd' | 'r'
+const PIN_FILL: Record<PinColor, string> = { k: INK, d: '#8f1d24', r: RED }
+const PIN_LINE: Record<PinColor, string> = { k: '#d9d9d4', d: '#f0c9c9', r: '#ffe3e3' }
 
+// 参考の牌のように、牌いっぱいに大きな玉をぎっしり並べる
+const P = (x: number, y: number, r: number, c: PinColor) => ({ x, y, r, c })
 const PIN_LAYOUT: Record<number, { x: number; y: number; r: number; c: PinColor }[]> = {
-  2: [
-    { x: 45, y: 38, r: 16, c: 'k' },
-    { x: 45, y: 88, r: 16, c: 'k' },
-  ],
-  3: [
-    { x: 25, y: 33, r: 13.5, c: 'k' },
-    { x: 45, y: 63, r: 13.5, c: 'r' },
-    { x: 65, y: 93, r: 13.5, c: 'k' },
-  ],
-  4: [
-    { x: 29, y: 40, r: 14, c: 'k' },
-    { x: 61, y: 40, r: 14, c: 'k' },
-    { x: 29, y: 86, r: 14, c: 'k' },
-    { x: 61, y: 86, r: 14, c: 'k' },
-  ],
-  5: [
-    { x: 27, y: 36, r: 12.5, c: 'k' },
-    { x: 63, y: 36, r: 12.5, c: 'k' },
-    { x: 45, y: 63, r: 12.5, c: 'r' },
-    { x: 27, y: 90, r: 12.5, c: 'k' },
-    { x: 63, y: 90, r: 12.5, c: 'k' },
-  ],
-  6: [
-    { x: 30, y: 30, r: 12, c: 'k' },
-    { x: 60, y: 30, r: 12, c: 'k' },
-    { x: 30, y: 64, r: 12, c: 'r' },
-    { x: 60, y: 64, r: 12, c: 'r' },
-    { x: 30, y: 96, r: 12, c: 'r' },
-    { x: 60, y: 96, r: 12, c: 'r' },
-  ],
+  2: [P(45, 34, 21, 'k'), P(45, 92, 21, 'k')],
+  3: [P(22, 29, 17, 'k'), P(45, 63, 17, 'd'), P(68, 97, 17, 'k')],
+  4: [P(25, 38, 18.5, 'k'), P(65, 38, 18.5, 'd'), P(25, 88, 18.5, 'd'), P(65, 88, 18.5, 'k')],
+  5: [P(23, 32, 16, 'k'), P(67, 32, 16, 'k'), P(45, 63, 16, 'd'), P(23, 94, 16, 'k'), P(67, 94, 16, 'k')],
+  6: [P(27, 28, 15.5, 'k'), P(63, 28, 15.5, 'k'), P(27, 63, 15.5, 'd'), P(63, 63, 15.5, 'd'), P(27, 98, 15.5, 'd'), P(63, 98, 15.5, 'd')],
   7: [
-    { x: 24, y: 22, r: 9.5, c: 'k' },
-    { x: 45, y: 31, r: 9.5, c: 'k' },
-    { x: 66, y: 40, r: 9.5, c: 'k' },
-    { x: 31, y: 70, r: 11, c: 'r' },
-    { x: 59, y: 70, r: 11, c: 'r' },
-    { x: 31, y: 98, r: 11, c: 'r' },
-    { x: 59, y: 98, r: 11, c: 'r' },
+    P(20, 19, 12, 'k'), P(45, 31, 12, 'k'), P(70, 43, 12, 'k'),
+    P(27, 74, 14.5, 'd'), P(63, 74, 14.5, 'd'), P(27, 104, 14.5, 'd'), P(63, 104, 14.5, 'd'),
   ],
   8: [
-    { x: 31, y: 23, r: 10.5, c: 'k' },
-    { x: 59, y: 23, r: 10.5, c: 'k' },
-    { x: 31, y: 49, r: 10.5, c: 'k' },
-    { x: 59, y: 49, r: 10.5, c: 'k' },
-    { x: 31, y: 77, r: 10.5, c: 'k' },
-    { x: 59, y: 77, r: 10.5, c: 'k' },
-    { x: 31, y: 103, r: 10.5, c: 'k' },
-    { x: 59, y: 103, r: 10.5, c: 'k' },
+    P(28, 21, 13, 'k'), P(62, 21, 13, 'k'), P(28, 49, 13, 'k'), P(62, 49, 13, 'k'),
+    P(28, 77, 13, 'k'), P(62, 77, 13, 'k'), P(28, 105, 13, 'k'), P(62, 105, 13, 'k'),
   ],
   9: [
-    { x: 24, y: 32, r: 11.5, c: 'k' },
-    { x: 45, y: 32, r: 11.5, c: 'k' },
-    { x: 66, y: 32, r: 11.5, c: 'k' },
-    { x: 24, y: 63, r: 11.5, c: 'r' },
-    { x: 45, y: 63, r: 11.5, c: 'r' },
-    { x: 66, y: 63, r: 11.5, c: 'r' },
-    { x: 24, y: 94, r: 11.5, c: 'k' },
-    { x: 45, y: 94, r: 11.5, c: 'k' },
-    { x: 66, y: 94, r: 11.5, c: 'k' },
+    P(19, 30, 12.5, 'k'), P(45, 30, 12.5, 'k'), P(71, 30, 12.5, 'k'),
+    P(19, 63, 12.5, 'd'), P(45, 63, 12.5, 'd'), P(71, 63, 12.5, 'd'),
+    P(19, 96, 12.5, 'k'), P(45, 96, 12.5, 'k'), P(71, 96, 12.5, 'k'),
   ],
 }
 
@@ -100,44 +63,51 @@ function dots(x: number, y: number, radius: number, n: number, size: number, col
   }).join('')
 }
 
-/** 円周上に放射状の線を並べる（一筒の模様） */
-function spokes(x: number, y: number, r1: number, r2: number, n: number, width: number, color: string): string {
-  return Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2
-    const x1 = (x + Math.cos(a) * r1).toFixed(2)
-    const y1 = (y + Math.sin(a) * r1).toFixed(2)
-    const x2 = (x + Math.cos(a) * r2).toFixed(2)
-    const y2 = (y + Math.sin(a) * r2).toFixed(2)
-    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${width}" stroke-linecap="round"/>`
+/** 桜のような花（細い線）。花びら n 枚を円で重ね、真ん中に小さな輪 */
+function flower(x: number, y: number, r: number, n: number, line: string, width: number): string {
+  const petals = Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2
+    const cx = (x + Math.cos(a) * r * 0.55).toFixed(2)
+    const cy = (y + Math.sin(a) * r * 0.55).toFixed(2)
+    return `<circle cx="${cx}" cy="${cy}" r="${(r * 0.42).toFixed(2)}" fill="none" stroke="${line}" stroke-width="${width}"/>`
   }).join('')
+  return `${petals}<circle cx="${x}" cy="${y}" r="${(r * 0.2).toFixed(2)}" fill="none" stroke="${line}" stroke-width="${width}"/>`
 }
 
-/** 筒子の玉：外輪・白い輪・花びら・中心 */
-function pinDot(x: number, y: number, r: number, color: string): string {
-  const center = color === RED ? INK : RED
+/** 筒子の玉：塗りつぶした玉に、外輪と花を細い明るい線で */
+function pinDot(x: number, y: number, r: number, c: PinColor): string {
+  const line = PIN_LINE[c]
+  const w = Math.max(0.8, r * 0.07)
   return `<g>
-    <circle cx="${x}" cy="${y}" r="${r}" fill="${color}"/>
-    <circle cx="${x}" cy="${y}" r="${r * 0.8}" fill="${PAPER}"/>
-    <circle cx="${x}" cy="${y}" r="${r * 0.66}" fill="${color}"/>
-    ${dots(x, y, r * 0.42, 8, r * 0.13, PAPER)}
-    <circle cx="${x}" cy="${y}" r="${r * 0.17}" fill="${center}"/>
+    <circle cx="${x}" cy="${y}" r="${r}" fill="${PIN_FILL[c]}"/>
+    <circle cx="${x}" cy="${y}" r="${r * 0.84}" fill="none" stroke="${line}" stroke-width="${w}"/>
+    ${flower(x, y, r * 0.62, 5, line, w)}
   </g>`
 }
 
-/** 一筒：大きな飾り玉 */
+/** 白いコンマのような飾り（一筒の外周） */
+function commas(x: number, y: number, radius: number, n: number, size: number): string {
+  return Array.from({ length: n }, (_, i) => {
+    const deg = (i / n) * 360
+    return `<g transform="rotate(${deg.toFixed(1)} ${x} ${y}) translate(${x} ${y - radius})">
+      <path d="M ${-size} 0 A ${size} ${size} 0 1 1 ${size * 0.2} ${size * 0.9}" fill="none" stroke="${PAPER}" stroke-width="${(size * 0.55).toFixed(2)}" stroke-linecap="round"/>
+    </g>`
+  }).join('')
+}
+
+/** 一筒：黒い大きな円のふちに白い飾り、真ん中に赤い花の円 */
 function bigPin(): string {
   const x = 45
   const y = 63
-  return `<g>
-    <circle cx="${x}" cy="${y}" r="32" fill="${INK}"/>
-    <circle cx="${x}" cy="${y}" r="28.5" fill="${PAPER}"/>
-    <circle cx="${x}" cy="${y}" r="26" fill="${INK}"/>
-    ${spokes(x, y, 15, 24, 24, 1.6, PAPER)}
-    <circle cx="${x}" cy="${y}" r="14" fill="${PAPER}"/>
-    <circle cx="${x}" cy="${y}" r="12" fill="${RED}"/>
-    ${dots(x, y, 7.5, 8, 1.8, PAPER)}
-    <circle cx="${x}" cy="${y}" r="4" fill="${INK}"/>
-    <circle cx="${x}" cy="${y}" r="1.6" fill="${PAPER}"/>
+  // 牌いっぱいに見えるよう、少し大きくして置く
+  return `<g transform="translate(${x} ${y}) scale(1.15) translate(${-x} ${-y})">
+    <circle cx="${x}" cy="${y}" r="33" fill="${INK}"/>
+    <circle cx="${x}" cy="${y}" r="31" fill="none" stroke="#d9d9d4" stroke-width="0.9"/>
+    ${commas(x, y, 25.5, 16, 2.6)}
+    <circle cx="${x}" cy="${y}" r="19.5" fill="none" stroke="#d9d9d4" stroke-width="0.9"/>
+    <circle cx="${x}" cy="${y}" r="18" fill="#8f1d24"/>
+    ${flower(x, y, 15, 8, '#f0c9c9', 1.1)}
+    ${dots(x, y, 10.5, 16, 0.9, '#f0c9c9')}
   </g>`
 }
 
@@ -274,7 +244,7 @@ function tileSVG(kind: TileKind, red: boolean): string {
       <text x="45" y="108" text-anchor="middle" font-family="${BRUSH}" font-size="54" fill="${RED}">萬</text>`
   } else if (kind <= 17) {
     const n = kind - 8
-    inner = n === 1 ? bigPin() : PIN_LAYOUT[n].map(p => pinDot(p.x, p.y, p.r, PIN_FILL[p.c])).join('')
+    inner = n === 1 ? bigPin() : PIN_LAYOUT[n].map(p => pinDot(p.x, p.y, p.r, p.c)).join('')
   } else if (kind <= 26) {
     const n = kind - 17
     inner = n === 1 ? birdSvg() : SOU_LAYOUT[n].map(p => souStick(p.x, p.y, p.h, p.red, p.a)).join('')
