@@ -314,6 +314,53 @@ function HoursField({
   )
 }
 
+
+/**
+ * 名前の行（thead）を画面上端に付いてこさせる。
+ * 表は横スクロールの枠に入っているので CSS の sticky が効かず、ずらして追従させる。
+ * 最後の半荘の行まで来たらそこで止まり、下の「計」などには重ならない。
+ */
+function useFollowingHeader(scrollEl: HTMLElement | null) {
+  useEffect(() => {
+    if (!scrollEl) return
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const thead = scrollEl.querySelector<HTMLElement>('.mjs-table thead')
+      const tbody = scrollEl.querySelector<HTMLElement>('.mjs-table tbody')
+      if (!thead || !tbody) return
+      const cells = thead.querySelectorAll<HTMLElement>('th')
+      cells.forEach(th => (th.style.transform = ''))
+      const top = scrollEl.getBoundingClientRect().top
+      const head = thead.getBoundingClientRect()
+      const bodyBottom = tbody.getBoundingClientRect().bottom
+      const max = Math.max(0, bodyBottom - head.bottom)
+      const offset = Math.min(Math.max(0, top - head.top), max)
+      const next = offset > 0 ? `translateY(${offset}px)` : ''
+      cells.forEach(th => {
+        th.style.transform = next
+        th.classList.toggle('following', offset > 0)
+      })
+    }
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    update()
+    scrollEl.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    const ro = new ResizeObserver(schedule)
+    ro.observe(scrollEl)
+    const table = scrollEl.querySelector('.mjs-table')
+    if (table) ro.observe(table)
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      scrollEl.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      ro.disconnect()
+    }
+  }, [scrollEl])
+}
+
 export function MahjongLedger() {
   const [data, setData] = useState<SheetData>(loadData)
   const dataRef = useRef(data)
@@ -378,6 +425,9 @@ export function MahjongLedger() {
     pushToRoom({ sheet: lastPushed.current }, { sheet: next })
     lastPushed.current = next
   }, [data, hosting, pushToRoom])
+
+  const [sheetEl, setSheetEl] = useState<HTMLDivElement | null>(null)
+  useFollowingHeader(sheetEl)
 
   // 共有リンク（#mj=...）で開かれたら、見る人として入る。
   // アプリを開いたままタップされたときはハッシュが変わるだけなので hashchange も拾う
@@ -786,7 +836,7 @@ export function MahjongLedger() {
     hasOrders
 
   return (
-    <div className="mjs">
+    <div className="mjs" ref={setSheetEl}>
       {shareBar}
       {!readOnly && (
       <div className="mjs-toolbar">

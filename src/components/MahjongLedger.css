@@ -86,13 +86,17 @@
 
 /* 名前の行は上に貼り付けておく */
 .mjs-table thead th {
-  position: sticky;
-  top: -10px;
+  /* 追従は JS で translateY する（横スクロール枠の中なので sticky が効かない） */
+  position: relative;
   z-index: 2;
   background: #14141f;
   padding: 6px 2px;
   font-size: 0.75rem;
   color: #aaa;
+}
+
+.mjs-table thead th.following {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
 }
 
 .mjs-name {
