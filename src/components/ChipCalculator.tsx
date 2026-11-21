@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { PastPlayersBar } from './PastPlayers'
+import { usePastPlayers } from '../hooks/usePastPlayers'
 import { useDiscordRoom } from '../hooks/useDiscordRoom'
 import { roomRefFromHash } from '../utils/discordSync'
 import { CODE_LENGTH, formatCode, normalizeCode } from '../utils/roomCrypto'
@@ -85,6 +87,11 @@ function formatTime(ms: number): string {
 
 // プレイヤーIDもアドオン1件ごとに載るので短くしておく
 let nextId = Date.now() % 46656
+/** 名前が空か、追加したときの "Player 3" のままか */
+function isDefaultPlayerName(name: string) {
+  return name === '' || /^Player \d+$/.test(name)
+}
+
 function genId() {
   nextId = (nextId + 1) % 46656
   return `p${nextId.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`
@@ -340,6 +347,35 @@ export function ChipCalculator() {
         { id: genId(), name: `Player ${prev.players.length + 1}`, rebuyCount: 1, finalChips: 0 },
       ],
     }))
+  }
+
+  // 過去の参加者リスト（この端末だけ）。初期値の "Player 1" などは覚えない
+  const pastPlayers = usePastPlayers(
+    'chip-calculator-past-players',
+    data.players.map(p => p.name),
+    isDefaultPlayerName,
+  )
+  const activeNameId = useRef<string | null>(null)
+  const skipRemember = useRef(false)
+
+  // 選んだ名前は、入力中の欄 → 名前が初期値のままの人 → 新しく足す、の順に入れる
+  const pickPastPlayer = (name: string) => {
+    const focused = activeNameId.current
+    const target =
+      data.players.find(p => p.id === focused) ??
+      data.players.find(p => isDefaultPlayerName(p.name.trim()))
+    if (target) {
+      updatePlayer(target.id, { name })
+    } else {
+      mutate(prev => ({
+        ...prev,
+        players: [...prev.players, { id: genId(), name, rebuyCount: 1, finalChips: 0 }],
+      }))
+    }
+    activeNameId.current = null
+    skipRemember.current = true
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    skipRemember.current = false
   }
 
   const removePlayer = (id: string) => {
@@ -865,6 +901,16 @@ export function ChipCalculator() {
           )}
         </div>
 
+        {!inRoom && (
+          <PastPlayersBar
+            list={pastPlayers.list}
+            used={data.players.map(p => p.name)}
+            onPick={pickPastPlayer}
+            onForget={pastPlayers.forget}
+            hint="押すとプレイヤーに入ります"
+          />
+        )}
+
         {data.players.map(player => {
           const pnl = calcPnl(data, player)
           const invested = data.buyInYen * player.rebuyCount
@@ -876,6 +922,15 @@ export function ChipCalculator() {
                   className="player-name-input"
                   value={player.name}
                   onChange={e => updatePlayer(player.id, { name: e.target.value })}
+                  onFocus={() => (activeNameId.current = player.id)}
+                  onBlur={e => {
+                    // 過去の参加者を押したときは、そちらで欄を決める
+                    const id = player.id
+                    window.setTimeout(() => {
+                      if (activeNameId.current === id) activeNameId.current = null
+                    }, 300)
+                    if (!skipRemember.current) pastPlayers.remember([e.target.value])
+                  }}
                   maxLength={20}
                 />
                 {inRoom && (

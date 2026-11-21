@@ -22,6 +22,8 @@ import { hubTransfers, minimalTransfers } from '../utils/settlement'
 import { renderSheetImage } from '../utils/mahjongImage'
 import { dateStamp, saveCanvasImage } from '../utils/resultImage'
 import './MahjongLedger.css'
+import { PastPlayersBar } from './PastPlayers'
+import { usePastPlayers } from '../hooks/usePastPlayers'
 
 interface SheetData {
   names: string[]
@@ -147,34 +149,6 @@ const CODE_STORAGE_KEY = 'mahjong-sheet-code'
 const WEBHOOK_STORAGE_KEY = 'chip-calculator-webhook'
 /** このルームで自分がホストか、見ているだけか */
 const ROLE_STORAGE_KEY = 'mahjong-sheet-role'
-// 一度でも名前を入れた人。この端末にだけ残り、共有はしない
-const PAST_PLAYERS_KEY = 'mahjong-sheet-past-players'
-const PAST_PLAYERS_MAX = 40
-
-function loadPastPlayers(): string[] {
-  try {
-    const raw = localStorage.getItem(PAST_PLAYERS_KEY)
-    const list = raw ? (JSON.parse(raw) as unknown) : []
-    return Array.isArray(list) ? list.filter((n): n is string => typeof n === 'string') : []
-  } catch {
-    return []
-  }
-}
-
-function savePastPlayers(list: string[]) {
-  try {
-    localStorage.setItem(PAST_PLAYERS_KEY, JSON.stringify(list))
-  } catch {
-    // ignore
-  }
-}
-
-/** 先頭（最近）に入れて重複を消す */
-function rememberNames(list: string[], names: string[]): string[] {
-  const fresh = names.map(n => n.trim()).filter(Boolean)
-  const next = [...fresh, ...list.filter(n => !fresh.includes(n))]
-  return [...new Set(next)].slice(0, PAST_PLAYERS_MAX)
-}
 const HASH_KEY = 'mj'
 
 type ShareRole = 'host' | 'viewer'
@@ -457,16 +431,12 @@ export function MahjongLedger() {
   const [sheetEl, setSheetEl] = useState<HTMLDivElement | null>(null)
   useFollowingHeader(sheetEl)
 
-  // 過去の参加者リスト。今の表に入っている名前も最初に覚えておく
-  const [pastPlayers, setPastPlayers] = useState<string[]>(() =>
-    rememberNames(loadPastPlayers(), data.names),
-  )
+  // 過去の参加者リスト（この端末だけ）
+  const pastPlayers = usePastPlayers('mahjong-sheet-past-players', data.names)
+  const remember = pastPlayers.remember
   // 過去の参加者を選んだ直後の blur では、打ちかけの名前を覚えない
   const skipRemember = useRef(false)
-  const [editingPast, setEditingPast] = useState(false)
   const activeNameCol = useRef<number | null>(null)
-  useEffect(() => savePastPlayers(pastPlayers), [pastPlayers])
-  const remember = (names: string[]) => setPastPlayers(list => rememberNames(list, names))
 
   // 共有リンク（#mj=...）で開かれたら、見る人として入る。
   // アプリを開いたままタップされたときはハッシュが変わるだけなので hashchange も拾う
@@ -812,8 +782,6 @@ export function MahjongLedger() {
     skipRemember.current = false
   }
 
-  const forgetPastPlayer = (name: string) => setPastPlayers(list => list.filter(n => n !== name))
-
   const addPlayer = () =>
     setData(prev =>
       prev.names.length >= MAX_PLAYERS
@@ -909,40 +877,13 @@ export function MahjongLedger() {
       </div>
       )}
 
-      {!readOnly && pastPlayers.length > 0 && (
-        <div className="mjs-past">
-          <div className="mjs-past-head">
-            <span className="mjs-toolbar-label">過去の参加者</span>
-            <span className="mjs-past-hint">
-              {editingPast ? '× で消す' : '押すと名前の欄に入ります'}
-            </span>
-            <button className="mjs-past-edit" onClick={() => setEditingPast(v => !v)}>
-              {editingPast ? '完了' : '編集'}
-            </button>
-          </div>
-          <div className="mjs-past-list">
-            {pastPlayers.map(name => {
-              const used = names.some(n => n.trim() === name)
-              return editingPast ? (
-                <button key={name} className="mjs-past-chip editing" onClick={() => forgetPastPlayer(name)}>
-                  {name} <span className="mjs-past-x">×</span>
-                </button>
-              ) : (
-                <button
-                  key={name}
-                  className={`mjs-past-chip ${used ? 'used' : ''}`}
-                  disabled={used}
-                  // 名前の欄のフォーカスを外さずに押せるようにする
-                  onPointerDown={e => e.preventDefault()}
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => pickPastPlayer(name)}
-                >
-                  {name}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+      {!readOnly && (
+        <PastPlayersBar
+          list={pastPlayers.list}
+          used={names}
+          onPick={pickPastPlayer}
+          onForget={pastPlayers.forget}
+        />
       )}
 
       <div className="mjs-table-wrap">

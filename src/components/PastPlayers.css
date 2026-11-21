@@ -1,0 +1,74 @@
+/* 過去の参加者（麻雀・ポーカー共通） */
+.past-players {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.past-players-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.past-players-hint {
+  font-size: 0.7rem;
+  color: #777;
+}
+
+.past-players-edit {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.past-players-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.past-players-chip {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.past-players-chip:active:not(:disabled) {
+  background: rgba(52, 152, 219, 0.35);
+}
+
+.past-players-chip.used {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.past-players-chip.editing {
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
+.past-players-x {
+  margin-left: 2px;
+  color: #e74c3c;
+}
+
+.past-players-label {
+  font-size: 0.8rem;
+  color: #aaa;
+}
