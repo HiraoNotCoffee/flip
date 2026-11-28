@@ -6,6 +6,7 @@ import { Blackjack } from './components/Blackjack'
 import { MahjongLedger } from './components/MahjongLedger'
 import { MahjongScoreTable } from './components/MahjongScoreTable'
 import { MahjongWaits } from './components/MahjongWaits'
+import { MahjongBoard } from './components/MahjongBoard'
 import { ShotClock, SHOT_CLOCK_OPTIONS } from './components/ShotClock'
 
 // three.js と物理演算で重いので、開いたときだけ読み込む
@@ -13,7 +14,7 @@ const Chinchiro = lazy(() => import('./components/Chinchiro').then(m => ({ defau
 import { checkForUpdate, superReload } from './swUpdate'
 import './App.css'
 
-type Page = 'flip' | 'chip' | 'blackjack' | 'mjledger' | 'mjtable' | 'mjwaits' | 'shotclock' | 'chinchiro'
+type Page = 'flip' | 'chip' | 'blackjack' | 'mjledger' | 'mjboard' | 'mjtable' | 'mjwaits' | 'shotclock' | 'chinchiro'
 
 function App() {
   const {
@@ -39,6 +40,7 @@ function App() {
     if (saved === 'chip') return 'chip'
     if (saved === 'blackjack') return 'blackjack'
     if (saved === 'mjledger') return 'mjledger'
+    if (saved === 'mjboard') return 'mjboard'
     if (saved === 'mjtable') return 'mjtable'
     if (saved === 'mjwaits') return 'mjwaits'
     if (saved === 'shotclock') return 'shotclock'
@@ -384,6 +386,7 @@ function App() {
             page === 'flip' ? 'Texas Holdem Flipout' :
             page === 'chip' ? 'Chip Calculator' :
             page === 'mjledger' ? '麻雀収支計算' :
+            page === 'mjboard' ? '三麻 点数管理' :
             page === 'mjtable' ? '麻雀点数表' :
             page === 'mjwaits' ? '麻雀多面張チェッカー' :
             page === 'shotclock' ? 'Shot Clock' :
@@ -471,6 +474,12 @@ function App() {
               麻雀収支計算
             </button>
             <button
+              className={`menu-item ${page === 'mjboard' ? 'active' : ''}`}
+              onClick={() => selectPage('mjboard')}
+            >
+              三麻 点数管理
+            </button>
+            <button
               className={`menu-item ${page === 'mjtable' ? 'active' : ''}`}
               onClick={() => selectPage('mjtable')}
             >
@@ -537,6 +546,8 @@ function App() {
         <ChipCalculator />
       ) : page === 'mjledger' ? (
         <MahjongLedger />
+      ) : page === 'mjboard' ? (
+        <MahjongBoard />
       ) : page === 'mjtable' ? (
         <MahjongScoreTable />
       ) : page === 'mjwaits' ? (

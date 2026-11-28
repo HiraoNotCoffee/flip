@@ -1,0 +1,427 @@
+/* 麻雀点数管理（3人打ち）: 手前・右・左の3席。右と左は、その人から読める向きに回す */
+.mjb {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 27% 1fr 27%;
+  grid-template-rows: 1fr 30%;
+  grid-template-areas:
+    'left center right'
+    'bottom bottom bottom';
+  gap: 8px;
+  padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* -------------------------------------------------- 席 */
+.mjb-seat {
+  position: relative;
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mjb-bottom { grid-area: bottom; }
+.mjb-right { grid-area: right; }
+.mjb-left { grid-area: left; }
+
+.mjb-seat-inner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100cqw;
+  height: 100cqh;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+}
+
+/* 右の人は画面の右辺が手前、左の人は左辺が手前になるよう回す */
+.mjb-right .mjb-seat-inner {
+  width: 100cqh;
+  height: 100cqw;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.mjb-left .mjb-seat-inner {
+  width: 100cqh;
+  height: 100cqw;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.mjb-seat-inner.dealer {
+  border-color: rgba(231, 76, 60, 0.7);
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.mjb-seat-inner.selectable {
+  border-color: #3498db;
+  background: rgba(52, 152, 219, 0.18);
+  cursor: pointer;
+  animation: mjb-pulse 1.2s ease-in-out infinite;
+}
+
+.mjb-seat-inner.winner {
+  border-color: #f1c40f;
+  background: rgba(241, 196, 15, 0.15);
+}
+
+.mjb-seat-inner.dim {
+  opacity: 0.35;
+}
+
+@keyframes mjb-pulse {
+  50% { background: rgba(52, 152, 219, 0.32); }
+}
+
+.mjb-seat-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.mjb-wind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 1.1rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.mjb-wind.dealer {
+  background: #c0392b;
+}
+
+.mjb-oya {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e74c3c;
+  font-size: 0.75rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.mjb-oya.small {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
+.mjb-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.mjb-points {
+  font-size: clamp(1.6rem, 14cqmin, 3.2rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.mjb-seat-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mjb-diff {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjb-diff.plus { color: #2ecc71; }
+.mjb-diff.minus { color: #e74c3c; }
+
+.mjb-riichi {
+  min-width: 64px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mjb-riichi.on {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: white;
+}
+
+.mjb-riichi:disabled {
+  opacity: 0.5;
+}
+
+/* リーチ棒（白い棒に赤い点） */
+.mjb-stick {
+  display: inline-block;
+  position: relative;
+  width: 44px;
+  height: 7px;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 0 0 1px #999;
+  vertical-align: middle;
+}
+
+.mjb-stick::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #e74c3c;
+  transform: translate(-50%, -50%);
+}
+
+/* -------------------------------------------------- 真ん中 */
+.mjb-center {
+  grid-area: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  text-align: center;
+}
+
+.mjb-round {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.mjb-counters {
+  display: flex;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: #ccc;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mjb-prompt {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #f1c40f;
+}
+
+.mjb-actions,
+.mjb-how {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+  max-width: 220px;
+}
+
+.mjb-how .mjb-prompt {
+  grid-column: 1 / -1;
+}
+
+.mjb-btn {
+  padding: 10px 8px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mjb-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.mjb-btn.primary { background: #27ae60; }
+.mjb-btn.danger { background: #c0392b; }
+.mjb-btn.ghost { background: transparent; border: 1px solid rgba(255, 255, 255, 0.2); }
+.mjb-btn.small { padding: 6px 10px; font-size: 0.8rem; }
+
+/* -------------------------------------------------- ダイアログ */
+.mjb-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.mjb-dialog {
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #1c1c2b;
+  box-sizing: border-box;
+}
+
+.mjb-dialog-title {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.mjb-dialog-sub {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-top: 4px;
+}
+
+.mjb-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.mjb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mjb-pill {
+  padding: 10px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mjb-pill.on {
+  background: #2980b9;
+  border-color: #3498db;
+}
+
+.mjb-pill.wide {
+  text-align: left;
+  padding: 12px;
+}
+
+.mjb-result {
+  min-height: 1.5em;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.mjb-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mjb-dialog-actions .mjb-btn {
+  min-width: 90px;
+}
+
+.mjb-names {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mjb-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mjb-name-label {
+  width: 3em;
+  font-size: 0.8rem;
+  color: #aaa;
+  flex-shrink: 0;
+}
+
+.mjb-name-row input,
+.mjb-row select {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 0.9rem;
+}
+
+.mjb-name-row input:first-of-type {
+  flex: 1;
+}
+
+.mjb-name-row input.mjb-adjust {
+  width: 70px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.mjb-row select option {
+  background: #1c1c2b;
+}
+
+.mjb-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mjb-row-label {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.mjb-row-value {
+  min-width: 1.5em;
+  text-align: center;
+  font-weight: 700;
+}
+
+.mjb-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #777;
+}
