@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyDraw, applyRon, applyTsumo, newBoard, roundLabel, seatWind, toggleRiichi } from './board'
+import { formatK, applyDraw, applyRon, applyTsumo, newBoard, roundLabel, seatWind, toggleRiichi } from './board'
 
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0)
 
@@ -23,9 +23,9 @@ describe('麻雀点数管理（3人打ち）', () => {
     expect(s.points[2]).toBe(34000)
     expect(s.kyotaku).toBe(1)
     s = applyRon(s, 1, 2, 1000)
-    // 1000 + 300 を払い、和了者はリーチ棒 1000 も貰う
-    expect(s.points[2]).toBe(32700)
-    expect(s.points[1]).toBe(33000 + 1300 + 1000)
+    // 1000 + 1本場 1000 を払い、和了者はリーチ棒 1000 も貰う
+    expect(s.points[2]).toBe(32000)
+    expect(s.points[1]).toBe(33000 + 2000 + 1000)
     expect(s.kyotaku).toBe(0)
     expect(s.riichi).toEqual([0, 0, 0])
     expect(sum(s.points)).toBe(105000)
@@ -34,11 +34,11 @@ describe('麻雀点数管理（3人打ち）', () => {
   it('子のツモと親のツモ（本場込み）', () => {
     let s = { ...newBoard(), honba: 2 }
     s = applyTsumo(s, 1, 3000, 5000)
-    // 子 3000+200、親 5000+200
-    expect(s.points).toEqual([29800, 43400, 31800])
+    // 2本場: 子 3000+2000、親 5000+2000
+    expect(s.points).toEqual([28000, 47000, 30000])
     s = { ...newBoard(), honba: 1 }
     s = applyTsumo(s, 0, 6000, 0)
-    expect(s.points).toEqual([47200, 28900, 28900])
+    expect(s.points).toEqual([49000, 28000, 28000])
     expect(s.dealer).toBe(0)
     expect(s.honba).toBe(2)
   })
@@ -61,6 +61,12 @@ describe('麻雀点数管理（3人打ち）', () => {
     expect([s.riichi[0], s.points[0], s.kyotaku]).toEqual([2, 34000, 1])
     s = toggleRiichi(s, 0)
     expect([s.riichi[0], s.points[0], s.kyotaku]).toEqual([0, 35000, 0])
+  })
+
+  it('1000点単位の表示', () => {
+    expect(formatK(35000)).toBe('35')
+    expect(formatK(1500)).toBe('1.5')
+    expect(formatK(-4000)).toBe('-4')
   })
 
   it('東3局のあとは南1局', () => {

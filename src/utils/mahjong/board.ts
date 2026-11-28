@@ -3,6 +3,8 @@
 
 export const WINDS = ['東', '南', '西', '北'] as const
 export const PLAYERS = 3
+/** 1本場につき、ロンは振り込んだ人から・ツモは払う2人からそれぞれこの点 */
+export const HONBA_POINTS = 1000
 
 export interface BoardState {
   names: string[]
@@ -79,9 +81,9 @@ export function toggleRiichi(state: BoardState, seat: number): BoardState {
   }
 }
 
-/** ロン。amount は本場を含まない点数（例: 8000）。本場は 1本につき 300 */
+/** ロン。amount は本場を含まない点数（例: 8000）。本場は 1本につき 1000 */
 export function applyRon(state: BoardState, winner: number, loser: number, amount: number): BoardState {
-  const pay = amount + state.honba * 300
+  const pay = amount + state.honba * HONBA_POINTS
   const points = state.points.map((p, i) =>
     i === winner ? p + pay + state.kyotaku * 1000 : i === loser ? p - pay : p,
   )
@@ -89,7 +91,7 @@ export function applyRon(state: BoardState, winner: number, loser: number, amoun
 }
 
 /**
- * ツモ。本場を含まない払い。本場は払う人ごとに 1本につき 100。
+ * ツモ。本場を含まない払い。本場は払う人ごとに 1本につき 1000。
  * 子のツモ: fromChild=もう1人の子の払い, fromDealer=親の払い。親のツモ: fromChild=1人の払い（オール）
  */
 export function applyTsumo(
@@ -102,7 +104,7 @@ export function applyTsumo(
   let total = 0
   const points = state.points.map((p, i) => {
     if (i === winner) return p
-    const pay = (dealerWins || i !== state.dealer ? fromChild : fromDealer) + state.honba * 100
+    const pay = (dealerWins || i !== state.dealer ? fromChild : fromDealer) + state.honba * HONBA_POINTS
     total += pay
     return p - pay
   })
@@ -118,6 +120,11 @@ export function applyDraw(state: BoardState, tenpai: boolean[]): BoardState {
       ? state.points
       : state.points.map((p, i) => (tenpai[i] ? p + 3000 / n : p - 3000 / (PLAYERS - n)))
   return finishHand({ ...state, points }, tenpai[state.dealer], true)
+}
+
+/** 1000点単位で表示する（35000 → "35"、1500 → "1.5"） */
+export function formatK(n: number): string {
+  return String(Math.round(n / 100) / 10)
 }
 
 /** 点数を手で直す */

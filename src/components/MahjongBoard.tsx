@@ -3,7 +3,9 @@ import { SANMA_TABLE } from '../utils/mahjong/sanma'
 import {
   PLAYERS,
   WINDS,
+  HONBA_POINTS,
   adjustPoints,
+  formatK,
   applyDraw,
   applyRon,
   applyTsumo,
@@ -137,7 +139,7 @@ export function MahjongBoard() {
                 {isDealer && <span className="mjb-oya">親</span>}
                 <span className="mjb-name">{nameOf(seat)}</span>
               </div>
-              <div className="mjb-points">{board.points[seat].toLocaleString()}</div>
+              <div className="mjb-points">{formatK(board.points[seat])}</div>
               <div className="mjb-seat-bottom">
                 <span className={`mjb-diff ${board.points[seat] - board.startPoints >= 0 ? 'plus' : 'minus'}`}>
                   {signed(board.points[seat] - board.startPoints)}
@@ -240,7 +242,7 @@ export function MahjongBoard() {
 }
 
 function signed(n: number) {
-  return n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString()
+  return n > 0 ? `+${formatK(n)}` : formatK(n)
 }
 
 // -------------------------------------------------- 和了の点数
@@ -266,24 +268,24 @@ function ScoreDialog({
 
   let result: { next: BoardState; text: string } | null = null
   if (row) {
-    const extra = board.kyotaku > 0 ? `  供託 +${(board.kyotaku * 1000).toLocaleString()}` : ''
+    const extra = board.kyotaku > 0 ? `  供託 +${formatK(board.kyotaku * 1000)}` : ''
     if (ron) {
       const amount = isDealer ? row.dealer.ron : row.child.ron
-      const honba = board.honba > 0 ? `（+${board.honba * 300}）` : ''
+      const honba = board.honba > 0 ? `（${board.honba}本場 +${formatK(board.honba * HONBA_POINTS)}）` : ''
       result = {
         next: applyRon(board, winner, loser, amount),
-        text: `${amount.toLocaleString()}${honba}${extra}`,
+        text: `${formatK(amount)}${honba}${extra}`,
       }
     } else if (isDealer) {
       const each = row.dealer.tsumo
-      const honba = board.honba > 0 ? `（+${board.honba * 100}）` : ''
-      result = { next: applyTsumo(board, winner, each, 0), text: `${each.toLocaleString()}オール${honba}${extra}` }
+      const honba = board.honba > 0 ? `（${board.honba}本場 各+${formatK(board.honba * HONBA_POINTS)}）` : ''
+      result = { next: applyTsumo(board, winner, each, 0), text: `${formatK(each)}オール${honba}${extra}` }
     } else {
       const [c, d] = row.child.tsumo
-      const honba = board.honba > 0 ? `（各+${board.honba * 100}）` : ''
+      const honba = board.honba > 0 ? `（${board.honba}本場 各+${formatK(board.honba * HONBA_POINTS)}）` : ''
       result = {
         next: applyTsumo(board, winner, c, d),
-        text: `子 ${c.toLocaleString()} / 親 ${d.toLocaleString()}${honba}${extra}`,
+        text: `子 ${formatK(c)} / 親 ${formatK(d)}${honba}${extra}`,
       }
     }
   }
@@ -352,7 +354,7 @@ function DrawDialog({
           ))}
         </div>
         <div className="mjb-result">
-          {n === 0 || n === PLAYERS ? '点数の移動なし' : `テンパイ +${3000 / n}  ノーテン −${3000 / (PLAYERS - n)}`}
+          {n === 0 || n === PLAYERS ? '点数の移動なし' : `テンパイ +${formatK(3000 / n)}  ノーテン −${formatK(3000 / (PLAYERS - n))}`}
           {tenpai[board.dealer] ? '　親は続く' : '　親が流れる'}
         </div>
         <div className="mjb-dialog-actions">
@@ -406,7 +408,7 @@ function SettingsDialog({
       <div className="mjb-dialog settings" onClick={e => e.stopPropagation()}>
         <div className="mjb-dialog-title">設定</div>
 
-        <div className="mjb-dialog-sub">名前（手前 → 右 → 左 の順に打つ）</div>
+        <div className="mjb-dialog-sub">名前（手前 → 右 → 左 の順に打つ）・点数の手直し（1000点単位）</div>
         <PastPlayersBar list={past.list} used={names} onPick={pick} onForget={past.forget} />
         <div className="mjb-names">
           {SEAT_LABELS.map((label, i) => (
@@ -427,7 +429,7 @@ function SettingsDialog({
               <input
                 className="mjb-adjust"
                 inputMode="text"
-                placeholder="±点"
+                placeholder="±"
                 value={adjust[i]}
                 onChange={e => setAdjust(a => a.map((v, j) => (j === i ? e.target.value : v)))}
               />
@@ -435,7 +437,7 @@ function SettingsDialog({
                 className="mjb-btn small"
                 disabled={!Number(adjust[i])}
                 onClick={() => {
-                  onChange(adjustPoints({ ...board, names }, i, Math.round(Number(adjust[i]))))
+                  onChange(adjustPoints({ ...board, names }, i, Math.round(Number(adjust[i]) * 10) * 100))
                   setAdjust(a => a.map((v, j) => (j === i ? '' : v)))
                 }}
               >
@@ -494,7 +496,7 @@ function SettingsDialog({
           <select value={start} onChange={e => setStart(Number(e.target.value))}>
             {[35000, 40000, 30000, 25000].map(p => (
               <option key={p} value={p}>
-                {p.toLocaleString()}
+                {formatK(p)}
               </option>
             ))}
           </select>
