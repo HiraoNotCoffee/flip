@@ -27,7 +27,7 @@ describe('麻雀点数管理（3人打ち）', () => {
     expect(s.points[2]).toBe(32700)
     expect(s.points[1]).toBe(33000 + 1300 + 1000)
     expect(s.kyotaku).toBe(0)
-    expect(s.riichi).toEqual([false, false, false])
+    expect(s.riichi).toEqual([0, 0, 0])
     expect(sum(s.points)).toBe(105000)
   })
 
@@ -52,6 +52,15 @@ describe('麻雀点数管理（3人打ち）', () => {
     expect(s.points).toEqual([35000, 39500, 30500])
     expect(s.dealer).toBe(1)
     expect(s.honba).toBe(2)
+  })
+
+  it('リーチ → ダブリー → 取り消し', () => {
+    let s = toggleRiichi(newBoard(), 0)
+    expect([s.riichi[0], s.points[0], s.kyotaku]).toEqual([1, 34000, 1])
+    s = toggleRiichi(s, 0)
+    expect([s.riichi[0], s.points[0], s.kyotaku]).toEqual([2, 34000, 1])
+    s = toggleRiichi(s, 0)
+    expect([s.riichi[0], s.points[0], s.kyotaku]).toEqual([0, 35000, 0])
   })
 
   it('東3局のあとは南1局', () => {

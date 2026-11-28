@@ -17,8 +17,8 @@ export interface BoardState {
   honba: number
   /** 供託のリーチ棒の本数 */
   kyotaku: number
-  /** この局でリーチしている人 */
-  riichi: boolean[]
+  /** この局のリーチ 0=なし 1=リーチ 2=ダブリー */
+  riichi: number[]
 }
 
 const fill = <T,>(v: T) => Array.from({ length: PLAYERS }, () => v)
@@ -33,7 +33,7 @@ export function newBoard(startPoints = 35000, names: string[] = fill('')): Board
     kyoku: 1,
     honba: 0,
     kyotaku: 0,
-    riichi: fill(false),
+    riichi: fill(0),
   }
 }
 
@@ -48,7 +48,7 @@ export function roundLabel(state: BoardState): string {
 
 /** 親が続く（連荘）か、次の局に進むか。リーチはどちらでも解く */
 function finishHand(state: BoardState, dealerKeeps: boolean, honbaUp: boolean): BoardState {
-  const riichi = fill(false)
+  const riichi = fill(0)
   if (dealerKeeps) return { ...state, riichi, honba: state.honba + 1 }
   let kyoku = state.kyoku + 1
   let roundWind = state.roundWind
@@ -66,14 +66,16 @@ function finishHand(state: BoardState, dealerKeeps: boolean, honbaUp: boolean): 
   }
 }
 
-/** リーチ（もう一度押すと取り消し） */
+/** リーチ → ダブリー → 取り消し、の順に切り替える。棒はどちらも 1000点 */
 export function toggleRiichi(state: BoardState, seat: number): BoardState {
-  const on = !state.riichi[seat]
+  const now = state.riichi[seat]
+  const next = (now + 1) % 3
+  const delta = now === 0 ? -1000 : next === 0 ? 1000 : 0
   return {
     ...state,
-    riichi: state.riichi.map((r, i) => (i === seat ? on : r)),
-    points: state.points.map((p, i) => (i === seat ? p + (on ? -1000 : 1000) : p)),
-    kyotaku: Math.max(0, state.kyotaku + (on ? 1 : -1)),
+    riichi: state.riichi.map((r, i) => (i === seat ? next : r)),
+    points: state.points.map((p, i) => (i === seat ? p + delta : p)),
+    kyotaku: Math.max(0, state.kyotaku - delta / 1000),
   }
 }
 

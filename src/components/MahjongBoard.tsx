@@ -36,7 +36,11 @@ function load(): Saved {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Saved
-      if (parsed.board?.points?.length === PLAYERS) return { board: parsed.board, history: parsed.history ?? [] }
+      if (parsed.board?.points?.length === PLAYERS) {
+        // 前の版はリーチを true/false で持っていた
+        const fix = (b: BoardState): BoardState => ({ ...b, riichi: b.riichi.map(r => Number(r)) })
+        return { board: fix(parsed.board), history: (parsed.history ?? []).map(fix) }
+      }
     }
   } catch {
     // ignore
@@ -139,14 +143,21 @@ export function MahjongBoard() {
                   {signed(board.points[seat] - board.startPoints)}
                 </span>
                 <button
-                  className={`mjb-riichi ${board.riichi[seat] ? 'on' : ''}`}
+                  className={`mjb-riichi ${board.riichi[seat] ? 'on' : ''} ${board.riichi[seat] === 2 ? 'double' : ''}`}
                   disabled={mode.kind !== 'idle'}
                   onClick={e => {
                     e.stopPropagation()
                     commit(toggleRiichi(board, seat))
                   }}
                 >
-                  {board.riichi[seat] ? <span className="mjb-stick" /> : 'リーチ'}
+                  {board.riichi[seat] === 0 ? (
+                    'リーチ'
+                  ) : (
+                    <>
+                      <span className="mjb-stick" />
+                      {board.riichi[seat] === 2 && <span className="mjb-double">W</span>}
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -285,6 +296,11 @@ function ScoreDialog({
           {isDealer && <span className="mjb-oya small">親</span>}
           {ron ? ` ← ${nameOf(loser)} からロン` : ' のツモ'}
         </div>
+        {board.riichi[winner] > 0 && (
+          <div className="mjb-reminder">
+            {board.riichi[winner] === 2 ? 'ダブリー（2翻）' : 'リーチ（1翻）'}も翻に入れてください
+          </div>
+        )}
         <div className="mjb-grid">
           {SANMA_TABLE.map((h, i) => (
             <button key={h.label} className={`mjb-pill ${choice === i ? 'on' : ''}`} onClick={() => setChoice(i)}>

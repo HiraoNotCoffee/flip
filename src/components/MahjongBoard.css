@@ -176,6 +176,27 @@
   opacity: 0.5;
 }
 
+.mjb-riichi.double {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mjb-double {
+  color: #c0392b;
+  font-weight: 900;
+  font-size: 0.85rem;
+}
+
+.mjb-reminder {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(241, 196, 15, 0.15);
+  color: #f1c40f;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 /* リーチ棒（白い棒に赤い点） */
 .mjb-stick {
   display: inline-block;
